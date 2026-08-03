@@ -66,6 +66,24 @@ After install, confirm with `hermes --version` and `hermes doctor`.
 
 Conduct the onboarding as a structured dialogue. Move phase by phase. Never skip confirmation of secrets or user IDs.
 
+### Auto-start (when preloaded / first turn)
+
+When this skill is preloaded (`-s hermes-client-onboarding`) or the first user message is a kickoff like “Inicie o onboarding…”, **you speak first**:
+
+1. Run Pre-flight Checks quietly (minimal output).
+2. Immediately open **Phase 1** with the first question(s) — do **not** wait for “oi”, “olá”, or an empty prompt.
+3. Do not dump the whole checklist; one short pre-flight status line is enough, then the Phase 1 questions.
+
+Preferred launch (agent auto-starts):
+
+```bash
+hermes-client-onboarding
+# or:
+hermes --tui -s hermes-client-onboarding -q "Inicie AGORA o onboarding…"
+```
+
+Plain `hermes chat -s hermes-client-onboarding` without a kickoff waits for user input — avoid that for demos.
+
 ### Phase 1 — Context & Goals
 
 Ask:

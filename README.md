@@ -117,8 +117,9 @@ test -f ~/.hermes/skills/hermes-client-onboarding/SKILL.md && echo skill_ok
 hermes --version
 hermes doctor
 
-# 4. onboarding interativo
-hermes chat -s hermes-client-onboarding
+# 4. onboarding interativo (agente fala primeiro — Phase 1)
+hermes-client-onboarding
+# ou: hermes --tui -s hermes-client-onboarding -q "Inicie AGORA o onboarding…"
 # completar fases 1–6 com chaves reais de teste
 
 # 5. smoke telegram
@@ -145,6 +146,17 @@ hermes config set model.base_url "https://api.deepseek.com/v1"
 ```
 
 Não imprime secrets.
+
+## Launcher (agente fala primeiro)
+
+O bootstrap instala `~/.local/bin/hermes-client-onboarding`, que abre o TUI com kickoff automático:
+
+```bash
+hermes-client-onboarding
+```
+
+Isso usa `hermes --tui -s hermes-client-onboarding -q "…"` — o Hermes **envia a primeira mensagem sozinho** e continua interativo.  
+`hermes chat -s …` sem `-q` / sem launcher espera o usuário falar primeiro.
 
 ## Licença
 

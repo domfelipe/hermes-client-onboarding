@@ -7,7 +7,7 @@ set -euo pipefail
 SKILL_NAME="hermes-client-onboarding"
 DEFAULT_BASE="${HERMES_ONBOARD_BASE:-https://setup.domhubs.com.br/hermes}"
 HERMES_INSTALL_URL="${HERMES_INSTALL_URL:-https://hermes-agent.nousresearch.com/install.sh}"
-KICKOFF_MSG="${HERMES_ONBOARD_KICKOFF:-Inicie agora o onboarding de cliente Hermes. Siga a skill hermes-client-onboarding fase a fase (Phase 1 primeiro). Fale em português brasileiro.}"
+KICKOFF_MSG="${HERMES_ONBOARD_KICKOFF:-Inicie AGORA o onboarding de cliente Hermes. Siga a skill hermes-client-onboarding: pre-flight em silêncio e abra a Phase 1 com a primeira pergunta. Você fala primeiro — não espere eu dizer oi. Português brasileiro.}"
 
 CONDUCTOR="${HERMES_ONBOARD_CONDUCTOR:-}"
 NO_LAUNCH=0
@@ -104,6 +104,9 @@ copy_tree() {
   if [[ -f "$dest/scripts/apply-core-config.sh" ]]; then
     chmod +x "$dest/scripts/apply-core-config.sh"
   fi
+  if [[ -f "$dest/scripts/start-onboarding.sh" ]]; then
+    chmod +x "$dest/scripts/start-onboarding.sh"
+  fi
 }
 
 fetch_skill_to() {
@@ -115,7 +118,9 @@ fetch_skill_to() {
   curl -fsSL "${base}/skill/${SKILL_NAME}/SKILL.md" -o "$dest/SKILL.md"
   curl -fsSL "${base}/skill/${SKILL_NAME}/references/troubleshooting.md" -o "$dest/references/troubleshooting.md"
   curl -fsSL "${base}/skill/${SKILL_NAME}/scripts/apply-core-config.sh" -o "$dest/scripts/apply-core-config.sh"
+  curl -fsSL "${base}/skill/${SKILL_NAME}/scripts/start-onboarding.sh" -o "$dest/scripts/start-onboarding.sh" || true
   chmod +x "$dest/scripts/apply-core-config.sh"
+  [[ -f "$dest/scripts/start-onboarding.sh" ]] && chmod +x "$dest/scripts/start-onboarding.sh"
   [[ -s "$dest/SKILL.md" ]] || die "failed to download SKILL.md from $base"
 }
 
@@ -136,6 +141,14 @@ install_skill() {
   mkdir -p "${HOME}/.hermes/skills"
   copy_tree "$staging" "$hermes_dest"
   log "Skill installed for Hermes → $hermes_dest"
+
+  # Launcher: auto-starts Phase 1 (agent speaks first)
+  mkdir -p "${HOME}/.local/bin"
+  if [[ -f "$staging/scripts/start-onboarding.sh" ]]; then
+    cp -f "$staging/scripts/start-onboarding.sh" "${HOME}/.local/bin/hermes-client-onboarding"
+    chmod +x "${HOME}/.local/bin/hermes-client-onboarding"
+    log "Launcher → ~/.local/bin/hermes-client-onboarding (agent fala primeiro)"
+  fi
 
   # Codex / agents (optional)
   if [[ -d "${HOME}/.codex" ]] || need_cmd codex; then
@@ -196,30 +209,38 @@ pick_conductor() {
   fi
 }
 
+launch_hermes_onboarding() {
+  # Auto-start: TUI + -q submits first turn; session stays interactive.
+  export HERMES_ONBOARD_KICKOFF="$KICKOFF_MSG"
+  if [[ -x "${HOME}/.local/bin/hermes-client-onboarding" ]]; then
+    if [[ -r /dev/tty ]]; then
+      exec "${HOME}/.local/bin/hermes-client-onboarding" </dev/tty
+    else
+      exec "${HOME}/.local/bin/hermes-client-onboarding"
+    fi
+  fi
+  # Fallback without launcher binary
+  if [[ -r /dev/tty ]]; then
+    exec hermes --tui -s "$SKILL_NAME" -q "$KICKOFF_MSG" </dev/tty
+  else
+    exec hermes --tui -s "$SKILL_NAME" -q "$KICKOFF_MSG"
+  fi
+}
+
 launch_conductor() {
   local c="$1"
   case "$c" in
     skip)
-      log "Skill pronta. Rode depois:"
-      echo "  hermes chat -s ${SKILL_NAME}"
+      log "Skill pronta. Rode depois (agente fala primeiro):"
+      echo "  hermes-client-onboarding"
+      echo "  # ou: hermes --tui -s ${SKILL_NAME} -q \"${KICKOFF_MSG}\""
       need_cmd codex && echo "  codex \"${KICKOFF_MSG}\""
       return 0
       ;;
     hermes)
       need_cmd hermes || die "hermes missing"
-      log "Abrindo Hermes com skill ${SKILL_NAME}..."
-      echo ""
-      echo "────────────────────────────────────────"
-      echo "Quando o chat abrir, envie (ou já use):"
-      echo "  ${KICKOFF_MSG}"
-      echo "────────────────────────────────────────"
-      echo ""
-      # Reattach stdin to TTY after curl|bash so the chat is interactive
-      if [[ -r /dev/tty ]]; then
-        exec hermes chat -s "$SKILL_NAME" </dev/tty
-      else
-        exec hermes chat -s "$SKILL_NAME"
-      fi
+      log "Abrindo Hermes (auto-start Phase 1)..."
+      launch_hermes_onboarding
       ;;
     codex)
       need_cmd codex || die "codex not found — install Codex or use --conductor hermes"
@@ -243,8 +264,9 @@ main() {
   install_skill
 
   if [[ "$NO_LAUNCH" -eq 1 ]]; then
-    log "Done (--no-launch). Start with:"
-    echo "  hermes chat -s ${SKILL_NAME}"
+    log "Done (--no-launch). Start with (agent speaks first):"
+    echo "  hermes-client-onboarding"
+    echo "  # ou: hermes --tui -s ${SKILL_NAME} -q \"…\""
     exit 0
   fi
 
