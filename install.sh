@@ -107,6 +107,9 @@ copy_tree() {
   if [[ -f "$dest/scripts/start-onboarding.sh" ]]; then
     chmod +x "$dest/scripts/start-onboarding.sh"
   fi
+  if [[ -f "$dest/scripts/auto_kickoff_cli.py" ]]; then
+    chmod +x "$dest/scripts/auto_kickoff_cli.py"
+  fi
 }
 
 fetch_skill_to() {
@@ -119,8 +122,10 @@ fetch_skill_to() {
   curl -fsSL "${base}/skill/${SKILL_NAME}/references/troubleshooting.md" -o "$dest/references/troubleshooting.md"
   curl -fsSL "${base}/skill/${SKILL_NAME}/scripts/apply-core-config.sh" -o "$dest/scripts/apply-core-config.sh"
   curl -fsSL "${base}/skill/${SKILL_NAME}/scripts/start-onboarding.sh" -o "$dest/scripts/start-onboarding.sh" || true
+  curl -fsSL "${base}/skill/${SKILL_NAME}/scripts/auto_kickoff_cli.py" -o "$dest/scripts/auto_kickoff_cli.py" || true
   chmod +x "$dest/scripts/apply-core-config.sh"
   [[ -f "$dest/scripts/start-onboarding.sh" ]] && chmod +x "$dest/scripts/start-onboarding.sh"
+  [[ -f "$dest/scripts/auto_kickoff_cli.py" ]] && chmod +x "$dest/scripts/auto_kickoff_cli.py"
   [[ -s "$dest/SKILL.md" ]] || die "failed to download SKILL.md from $base"
 }
 
@@ -142,12 +147,17 @@ install_skill() {
   copy_tree "$staging" "$hermes_dest"
   log "Skill installed for Hermes → $hermes_dest"
 
-  # Launcher: auto-starts Phase 1 (agent speaks first)
-  mkdir -p "${HOME}/.local/bin"
+  # Launcher: auto-starts Phase 1 (agent speaks first via CLI PTY inject)
+  mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/hermes-client-onboarding"
   if [[ -f "$staging/scripts/start-onboarding.sh" ]]; then
     cp -f "$staging/scripts/start-onboarding.sh" "${HOME}/.local/bin/hermes-client-onboarding"
     chmod +x "${HOME}/.local/bin/hermes-client-onboarding"
     log "Launcher → ~/.local/bin/hermes-client-onboarding (agent fala primeiro)"
+  fi
+  if [[ -f "$staging/scripts/auto_kickoff_cli.py" ]]; then
+    cp -f "$staging/scripts/auto_kickoff_cli.py" "${HOME}/.local/share/hermes-client-onboarding/auto_kickoff_cli.py"
+    cp -f "$staging/scripts/auto_kickoff_cli.py" "${HOME}/.hermes/skills/${SKILL_NAME}/scripts/auto_kickoff_cli.py"
+    chmod +x "${HOME}/.local/share/hermes-client-onboarding/auto_kickoff_cli.py"
   fi
 
   # Codex / agents (optional)
@@ -210,21 +220,26 @@ pick_conductor() {
 }
 
 launch_hermes_onboarding() {
-  # Auto-start: TUI + -q submits first turn; session stays interactive.
   export HERMES_ONBOARD_KICKOFF="$KICKOFF_MSG"
+  export HERMES_ONBOARD_SKILL="$SKILL_NAME"
+  export HERMES_TUI_QUERY="$KICKOFF_MSG"
+  export HERMES_TUI_SKILLS="$SKILL_NAME"
   if [[ -x "${HOME}/.local/bin/hermes-client-onboarding" ]]; then
     if [[ -r /dev/tty ]]; then
-      exec "${HOME}/.local/bin/hermes-client-onboarding" </dev/tty
+      exec "${HOME}/.local/bin/hermes-client-onboarding" </dev/tty >/dev/tty 2>/dev/tty
     else
       exec "${HOME}/.local/bin/hermes-client-onboarding"
     fi
   fi
-  # Fallback without launcher binary (-q only works on `hermes chat`)
-  if [[ -r /dev/tty ]]; then
-    exec hermes chat --tui -s "$SKILL_NAME" -q "$KICKOFF_MSG" </dev/tty
-  else
-    exec hermes chat --tui -s "$SKILL_NAME" -q "$KICKOFF_MSG"
+  # Fallback: classic CLI + PTY inject script if present
+  local auto_py="${HOME}/.hermes/skills/${SKILL_NAME}/scripts/auto_kickoff_cli.py"
+  if [[ -f "$auto_py" ]] && command -v python3 >/dev/null 2>&1; then
+    if [[ -r /dev/tty ]]; then
+      exec python3 "$auto_py" </dev/tty >/dev/tty 2>/dev/tty
+    fi
+    exec python3 "$auto_py"
   fi
+  die "launcher missing — re-run install or: hermes chat --cli -s ${SKILL_NAME}"
 }
 
 launch_conductor() {

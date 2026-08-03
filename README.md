@@ -149,14 +149,18 @@ Não imprime secrets.
 
 ## Launcher (agente fala primeiro)
 
-O bootstrap instala `~/.local/bin/hermes-client-onboarding`, que abre o TUI com kickoff automático:
+O bootstrap instala `~/.local/bin/hermes-client-onboarding`:
 
 ```bash
 hermes-client-onboarding
 ```
 
-Isso usa `hermes chat --tui -s hermes-client-onboarding -q "…"` — o Hermes **envia a primeira mensagem sozinho** e continua interativo.  
-`hermes chat -s …` sem `-q` / sem launcher espera o usuário falar primeiro.
+Por padrão usa **CLI clássico + injeção automática** da primeira mensagem (PTY). O TUI nativo do Hermes tem race no startup-query (~4s) e costuma ficar mudo — por isso não é o default.
+
+```bash
+# TUI (opcional, menos confiável para auto-start)
+HERMES_ONBOARD_USE_TUI=1 hermes-client-onboarding
+```
 
 ## Licença
 
