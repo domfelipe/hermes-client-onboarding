@@ -79,8 +79,9 @@ def main() -> int:
                     b"welcome",
                     b"type your message",
                     b"\n> ",
-                    b"\n❯",
+                    "\n❯".encode("utf-8"),
                     b"\nprompt",
+                    b"hermes",
                 )
                 looks_ready = any(m in lower for m in ready_markers)
                 timed = now >= start + 4.0  # hard fallback inject
