@@ -79,10 +79,10 @@ Preferred launch (agent auto-starts):
 ```bash
 hermes-client-onboarding
 # or:
-hermes --tui -s hermes-client-onboarding -q "Inicie AGORA o onboarding…"
+hermes chat --tui -s hermes-client-onboarding -q "Inicie AGORA o onboarding…"
 ```
 
-Plain `hermes chat -s hermes-client-onboarding` without a kickoff waits for user input — avoid that for demos.
+Plain `hermes chat -s hermes-client-onboarding` without `-q` waits for user input — avoid that for demos.
 
 ### Phase 1 — Context & Goals
 

@@ -119,7 +119,7 @@ hermes doctor
 
 # 4. onboarding interativo (agente fala primeiro — Phase 1)
 hermes-client-onboarding
-# ou: hermes --tui -s hermes-client-onboarding -q "Inicie AGORA o onboarding…"
+# ou: hermes chat --tui -s hermes-client-onboarding -q "Inicie AGORA o onboarding…"
 # completar fases 1–6 com chaves reais de teste
 
 # 5. smoke telegram
@@ -155,7 +155,7 @@ O bootstrap instala `~/.local/bin/hermes-client-onboarding`, que abre o TUI com 
 hermes-client-onboarding
 ```
 
-Isso usa `hermes --tui -s hermes-client-onboarding -q "…"` — o Hermes **envia a primeira mensagem sozinho** e continua interativo.  
+Isso usa `hermes chat --tui -s hermes-client-onboarding -q "…"` — o Hermes **envia a primeira mensagem sozinho** e continua interativo.  
 `hermes chat -s …` sem `-q` / sem launcher espera o usuário falar primeiro.
 
 ## Licença

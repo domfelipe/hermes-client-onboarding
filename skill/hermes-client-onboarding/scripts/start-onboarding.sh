@@ -13,9 +13,10 @@ if ! command -v hermes >/dev/null 2>&1; then
   exit 1
 fi
 
-# TUI: -q becomes HERMES_TUI_QUERY — first turn auto-submits, session stays interactive.
+# Must use `hermes chat` subcommand: -q is not a top-level flag.
+# With --tui, -q becomes HERMES_TUI_QUERY — first turn auto-submits, session stays interactive.
 if [[ -t 0 && -t 1 ]]; then
-  exec hermes --tui -s "$SKILL_NAME" -q "$KICKOFF" "$@"
+  exec hermes chat --tui -s "$SKILL_NAME" -q "$KICKOFF" "$@"
 fi
 
 # Non-TTY fallback (CI/scripts): one-shot only

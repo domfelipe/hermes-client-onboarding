@@ -219,11 +219,11 @@ launch_hermes_onboarding() {
       exec "${HOME}/.local/bin/hermes-client-onboarding"
     fi
   fi
-  # Fallback without launcher binary
+  # Fallback without launcher binary (-q only works on `hermes chat`)
   if [[ -r /dev/tty ]]; then
-    exec hermes --tui -s "$SKILL_NAME" -q "$KICKOFF_MSG" </dev/tty
+    exec hermes chat --tui -s "$SKILL_NAME" -q "$KICKOFF_MSG" </dev/tty
   else
-    exec hermes --tui -s "$SKILL_NAME" -q "$KICKOFF_MSG"
+    exec hermes chat --tui -s "$SKILL_NAME" -q "$KICKOFF_MSG"
   fi
 }
 
@@ -233,7 +233,7 @@ launch_conductor() {
     skip)
       log "Skill pronta. Rode depois (agente fala primeiro):"
       echo "  hermes-client-onboarding"
-      echo "  # ou: hermes --tui -s ${SKILL_NAME} -q \"${KICKOFF_MSG}\""
+      echo "  # ou: hermes chat --tui -s ${SKILL_NAME} -q \"…\""
       need_cmd codex && echo "  codex \"${KICKOFF_MSG}\""
       return 0
       ;;
@@ -266,7 +266,7 @@ main() {
   if [[ "$NO_LAUNCH" -eq 1 ]]; then
     log "Done (--no-launch). Start with (agent speaks first):"
     echo "  hermes-client-onboarding"
-    echo "  # ou: hermes --tui -s ${SKILL_NAME} -q \"…\""
+    echo "  # ou: hermes chat --tui -s ${SKILL_NAME} -q \"…\""
     exit 0
   fi
 
