@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Spawn `hermes chat --cli -s <skill>` and inject the kickoff as first user message.
+"""Spawn hermes chat --cli -s <skill> and submit a short kickoff once.
 
-Hermes only runs a model turn after a user message. The TUI startup-query path
-races session creation (~4s) and often silently skips. This classic-CLI path
-waits for a ready prompt, sends the kickoff once, then hands the TTY to the user.
+Avoids Hermes paste-collapse (≥5 lines or ≥2000 chars → [Pasted text #N]).
+Uses raw TTY relay so Enter stays inside Hermes, not the outer shell.
 """
 from __future__ import annotations
 
@@ -11,40 +10,49 @@ import os
 import pty
 import select
 import sys
+import termios
 import time
+import tty
+
+
+# Keep under paste_collapse thresholds (5 lines / 2000 chars)
+DEFAULT_KICKOFF = (
+    "Inicie o onboarding agora. Skill hermes-client-onboarding. "
+    "Pre-flight silencioso e abra a Phase 1 (voce fala primeiro)."
+)
 
 
 def main() -> int:
     skill = os.environ.get("HERMES_ONBOARD_SKILL", "hermes-client-onboarding")
-    kickoff = os.environ.get(
-        "HERMES_ONBOARD_KICKOFF",
-        "Inicie AGORA o onboarding de cliente Hermes. Siga a skill "
-        "hermes-client-onboarding: pre-flight em silêncio e abra a Phase 1 "
-        "com a primeira pergunta. Você fala primeiro. Português brasileiro.",
-    )
-    if not kickoff.endswith("\n"):
-        kickoff += "\n"
+    kickoff = os.environ.get("HERMES_ONBOARD_KICKOFF", DEFAULT_KICKOFF).strip()
+    # Collapse accidental newlines so we never trip paste_collapse by lines
+    kickoff = " ".join(kickoff.split())
+    if len(kickoff) > 400:
+        kickoff = kickoff[:397] + "..."
 
     argv = ["hermes", "chat", "--cli", "-s", skill]
-    # Extra args after --
     if len(sys.argv) > 1:
         argv.extend(sys.argv[1:])
 
     pid, master = pty.fork()
     if pid == 0:
+        os.environ.pop("HERMES_TUI_QUERY", None)  # avoid confusing classic CLI
         os.execvp(argv[0], argv)
 
-    # Parent: relay I/O; inject kickoff once after session looks ready.
+    stdin_fd = sys.stdin.fileno()
+    stdout_fd = sys.stdout.fileno()
+    old_tty = None
+    if sys.stdin.isatty():
+        old_tty = termios.tcgetattr(stdin_fd)
+        tty.setraw(stdin_fd)
+
     sent = False
     buf = b""
     start = time.time()
-    inject_after = 1.5  # min wait for banner
-    deadline = start + 45.0
-
+    # Wait for skill activation line, else inject after a few seconds
     try:
         while True:
-            timeout = 0.2
-            r, _, _ = select.select([master, sys.stdin], [], [], timeout)
+            r, _, _ = select.select([master, stdin_fd], [], [], 0.15)
             now = time.time()
 
             if master in r:
@@ -54,49 +62,30 @@ def main() -> int:
                     data = b""
                 if not data:
                     break
-                os.write(sys.stdout.fileno(), data)
+                os.write(stdout_fd, data)
                 buf += data
-                if len(buf) > 20000:
-                    buf = buf[-10000:]
+                if len(buf) > 30000:
+                    buf = buf[-12000:]
 
-            if sys.stdin in r:
+            if stdin_fd in r:
                 try:
-                    data = os.read(sys.stdin.fileno(), 8192)
+                    data = os.read(stdin_fd, 8192)
                 except OSError:
                     data = b""
-                if not data:
-                    # stdin closed — keep agent until it exits
-                    pass
-                else:
+                if data:
                     os.write(master, data)
 
-            if not sent and now >= start + inject_after:
+            if not sent:
                 lower = buf.lower()
-                ready_markers = (
-                    b"ready",
-                    b"session:",
-                    b"try ",
-                    b"welcome",
-                    b"type your message",
-                    b"\n> ",
-                    "\n❯".encode("utf-8"),
-                    b"\nprompt",
-                    b"hermes",
-                )
-                looks_ready = any(m in lower for m in ready_markers)
-                timed = now >= start + 4.0  # hard fallback inject
-                if looks_ready or timed:
-                    # Small settle so status line finishes drawing
-                    time.sleep(0.35)
-                    os.write(master, kickoff.encode("utf-8", errors="replace"))
+                activated = b"activated skills" in lower or b"hermes-client-onboarding" in lower
+                timed = now >= start + 3.5
+                if (activated and now >= start + 1.2) or timed:
+                    time.sleep(0.25)
+                    # Type as normal keys + CR (not a giant paste burst)
+                    payload = (kickoff + "\r").encode("utf-8", errors="replace")
+                    os.write(master, payload)
                     sent = True
 
-            if not sent and now > deadline:
-                # Last resort
-                os.write(master, kickoff.encode("utf-8", errors="replace"))
-                sent = True
-
-            # Reap child
             wpid, status = os.waitpid(pid, os.WNOHANG)
             if wpid == pid:
                 if os.WIFEXITED(status):
@@ -109,12 +98,16 @@ def main() -> int:
             pass
         return 130
     finally:
+        if old_tty is not None:
+            try:
+                termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_tty)
+            except termios.error:
+                pass
         try:
             os.close(master)
         except OSError:
             pass
 
-    # Blocking wait if loop broke on EOF from master
     try:
         _, status = os.waitpid(pid, 0)
         if os.WIFEXITED(status):

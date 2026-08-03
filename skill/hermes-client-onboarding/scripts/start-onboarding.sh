@@ -8,7 +8,9 @@ set -euo pipefail
 export PATH="${HOME}/.local/bin:/usr/local/bin:${PATH}"
 
 SKILL_NAME="${HERMES_ONBOARD_SKILL:-hermes-client-onboarding}"
-KICKOFF="${HERMES_ONBOARD_KICKOFF:-Inicie AGORA o onboarding de cliente Hermes. Siga a skill hermes-client-onboarding: execute o pre-flight em silêncio e abra a Phase 1 fazendo a primeira pergunta ao usuário. Você fala primeiro — não espere eu dizer oi ou começar. Português brasileiro.}"
+# Short on purpose: long kickoffs hit Hermes paste-collapse (≥5 lines / 2000 chars)
+# and leave a stuck [Pasted text #N] instead of submitting.
+KICKOFF="${HERMES_ONBOARD_KICKOFF:-Inicie o onboarding agora. Skill hermes-client-onboarding. Pre-flight silencioso e Phase 1 (voce fala primeiro).}"
 
 export HERMES_ONBOARD_SKILL="$SKILL_NAME"
 export HERMES_ONBOARD_KICKOFF="$KICKOFF"
