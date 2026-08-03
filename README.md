@@ -155,10 +155,17 @@ O bootstrap instala `~/.local/bin/hermes-client-onboarding`:
 hermes-client-onboarding
 ```
 
-Por padrão usa **CLI clássico + injeção automática** da primeira mensagem (PTY). O TUI nativo do Hermes tem race no startup-query (~4s) e costuma ficar mudo — por isso não é o default.
+Por padrão usa **tmux** (Hermes em sessão dedicada + `send-keys` do kickoff). Isso evita o freeze do wrapper PTY com prompt_toolkit.
 
 ```bash
-# TUI (opcional, menos confiável para auto-start)
+# se pedir tmux e não tiver:
+# apt install -y tmux
+
+hermes-client-onboarding
+# detach: Ctrl-b d
+# reattach: tmux ls && tmux attach -t hermes-onboard-<pid>
+
+# TUI Ink (opcional, kickoff frágil)
 HERMES_ONBOARD_USE_TUI=1 hermes-client-onboarding
 ```
 

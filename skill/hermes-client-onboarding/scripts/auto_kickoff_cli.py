@@ -1,31 +1,43 @@
 #!/usr/bin/env python3
-"""Spawn hermes chat --cli -s <skill> and submit a short kickoff once.
+"""Fallback: spawn hermes chat --cli and inject a short kickoff via PTY.
 
-Avoids Hermes paste-collapse (≥5 lines or ≥2000 chars → [Pasted text #N]).
-Uses raw TTY relay so Enter stays inside Hermes, not the outer shell.
+Prefer tmux path in start-onboarding.sh — this can freeze prompt_toolkit
+on some terminals. Kept for hosts without tmux.
 """
 from __future__ import annotations
 
+import fcntl
 import os
 import pty
 import select
+import signal
+import struct
 import sys
 import termios
 import time
 import tty
 
 
-# Keep under paste_collapse thresholds (5 lines / 2000 chars)
 DEFAULT_KICKOFF = (
     "Inicie o onboarding agora. Skill hermes-client-onboarding. "
-    "Pre-flight silencioso e abra a Phase 1 (voce fala primeiro)."
+    "Pre-flight silencioso e Phase 1 (voce fala primeiro)."
 )
+
+
+def _set_winsize(fd: int) -> None:
+    try:
+        import shutil
+
+        cols, rows = shutil.get_terminal_size(fallback=(120, 40))
+        packed = struct.pack("HHHH", rows, cols, 0, 0)
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, packed)
+    except Exception:
+        pass
 
 
 def main() -> int:
     skill = os.environ.get("HERMES_ONBOARD_SKILL", "hermes-client-onboarding")
     kickoff = os.environ.get("HERMES_ONBOARD_KICKOFF", DEFAULT_KICKOFF).strip()
-    # Collapse accidental newlines so we never trip paste_collapse by lines
     kickoff = " ".join(kickoff.split())
     if len(kickoff) > 400:
         kickoff = kickoff[:397] + "..."
@@ -36,8 +48,22 @@ def main() -> int:
 
     pid, master = pty.fork()
     if pid == 0:
-        os.environ.pop("HERMES_TUI_QUERY", None)  # avoid confusing classic CLI
+        os.environ.pop("HERMES_TUI_QUERY", None)
         os.execvp(argv[0], argv)
+
+    _set_winsize(master)
+
+    def _on_winch(_sig: int, _frame: object) -> None:
+        _set_winsize(master)
+        try:
+            os.kill(pid, signal.SIGWINCH)
+        except ProcessLookupError:
+            pass
+
+    try:
+        signal.signal(signal.SIGWINCH, _on_winch)
+    except Exception:
+        pass
 
     stdin_fd = sys.stdin.fileno()
     stdout_fd = sys.stdout.fileno()
@@ -49,10 +75,9 @@ def main() -> int:
     sent = False
     buf = b""
     start = time.time()
-    # Wait for skill activation line, else inject after a few seconds
     try:
         while True:
-            r, _, _ = select.select([master, stdin_fd], [], [], 0.15)
+            r, _, _ = select.select([master, stdin_fd], [], [], 0.12)
             now = time.time()
 
             if master in r:
@@ -77,23 +102,22 @@ def main() -> int:
 
             if not sent:
                 lower = buf.lower()
-                activated = b"activated skills" in lower or b"hermes-client-onboarding" in lower
-                timed = now >= start + 3.5
-                if (activated and now >= start + 1.2) or timed:
-                    time.sleep(0.25)
-                    # Type as normal keys + CR (not a giant paste burst)
-                    payload = (kickoff + "\r").encode("utf-8", errors="replace")
-                    os.write(master, payload)
+                ready = (
+                    b"activated skills" in lower
+                    or b"welcome to hermes" in lower
+                    or b"type your message" in lower
+                )
+                if (ready and now >= start + 1.0) or now >= start + 4.0:
+                    time.sleep(0.35)
+                    os.write(master, (kickoff + "\r").encode("utf-8", errors="replace"))
                     sent = True
 
             wpid, status = os.waitpid(pid, os.WNOHANG)
             if wpid == pid:
-                if os.WIFEXITED(status):
-                    return os.WEXITSTATUS(status)
-                return 1
+                return os.WEXITSTATUS(status) if os.WIFEXITED(status) else 1
     except KeyboardInterrupt:
         try:
-            os.kill(pid, 2)
+            os.kill(pid, signal.SIGINT)
         except ProcessLookupError:
             pass
         return 130
