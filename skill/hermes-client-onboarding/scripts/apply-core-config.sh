@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply OpenRouter + model + Telegram core config for Hermes client onboarding.
+# Apply DeepSeek native + model + Telegram core config for Hermes client onboarding.
 # Does not print secrets. Requires: hermes on PATH.
 set -euo pipefail
 
@@ -7,26 +7,26 @@ usage() {
   cat <<'EOF'
 Usage:
   apply-core-config.sh \
-    --openrouter-key KEY \
+    --deepseek-key KEY \
     --telegram-token TOKEN \
     --allowed-users ID1,ID2 \
-    [--model deepseek/deepseek-v4-flash] \
-    [--provider openrouter]
+    [--model deepseek-v4-flash] \
+    [--provider deepseek]
 
 Env fallbacks (if flags omitted):
-  OPENROUTER_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS
+  DEEPSEEK_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS
 EOF
 }
 
-MODEL="deepseek/deepseek-v4-flash"
-PROVIDER="openrouter"
-OR_KEY="${OPENROUTER_API_KEY:-}"
+MODEL="deepseek-v4-flash"
+PROVIDER="deepseek"
+DS_KEY="${DEEPSEEK_API_KEY:-}"
 TG_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 TG_USERS="${TELEGRAM_ALLOWED_USERS:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --openrouter-key) OR_KEY="${2:-}"; shift 2 ;;
+    --deepseek-key|--openrouter-key) DS_KEY="${2:-}"; shift 2 ;; # --openrouter-key kept as alias
     --telegram-token) TG_TOKEN="${2:-}"; shift 2 ;;
     --allowed-users)  TG_USERS="${2:-}"; shift 2 ;;
     --model)          MODEL="${2:-}"; shift 2 ;;
@@ -42,21 +42,17 @@ if ! command -v hermes >/dev/null 2>&1; then
 fi
 
 missing=0
-[[ -z "$OR_KEY" ]] && { echo "error: missing OpenRouter key" >&2; missing=1; }
+[[ -z "$DS_KEY" ]] && { echo "error: missing DeepSeek API key" >&2; missing=1; }
 [[ -z "$TG_TOKEN" ]] && { echo "error: missing Telegram bot token" >&2; missing=1; }
 [[ -z "$TG_USERS" ]] && { echo "error: missing TELEGRAM_ALLOWED_USERS" >&2; missing=1; }
 [[ "$missing" -eq 1 ]] && exit 1
 
-# light validation (no secret echo)
-if [[ ! "$OR_KEY" =~ ^sk-or- ]]; then
-  echo "warn: OpenRouter key does not start with sk-or- (continuing)" >&2
-fi
 if [[ ! "$TG_USERS" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
   echo "error: allowed users must be numeric IDs, comma-separated" >&2
   exit 1
 fi
 
-hermes config set OPENROUTER_API_KEY "$OR_KEY"
+hermes config set DEEPSEEK_API_KEY "$DS_KEY"
 hermes config set model.provider "$PROVIDER"
 hermes config set model.default "$MODEL"
 hermes config set TELEGRAM_BOT_TOKEN "$TG_TOKEN"

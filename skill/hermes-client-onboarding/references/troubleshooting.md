@@ -3,9 +3,9 @@
 ## PATH / `hermes: command not found`
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 # persist
-grep -q '.local/bin' ~/.bashrc 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+grep -q '.local/bin' ~/.bashrc 2>/dev/null || echo 'export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"' >> ~/.bashrc
 hash -r
 hermes --version
 ```
@@ -16,15 +16,15 @@ Re-run install if still missing:
 curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-browser
 ```
 
-## OpenRouter auth errors
+## DeepSeek auth errors
 
-1. Confirm key format (`sk-or-v1-...`) without pasting full key into chat.
+1. Confirm key is from https://platform.deepseek.com/ (do not paste full key into chat).
 2. Re-set:
 
 ```bash
-hermes config set OPENROUTER_API_KEY "THE_KEY"
-hermes config set model.provider openrouter
-hermes config set model.default deepseek/deepseek-v4-flash
+hermes config set DEEPSEEK_API_KEY "THE_KEY"
+hermes config set model.provider deepseek
+hermes config set model.default deepseek-v4-flash
 ```
 
 3. Check:
@@ -35,7 +35,9 @@ hermes config get model.provider
 # key lives in ~/.hermes/.env — never cat full file in front of client
 ```
 
-4. Test connectivity: `curl -sI https://openrouter.ai | head -1`
+4. Test connectivity: `curl -sI https://api.deepseek.com | head -1`
+
+5. If the model name is rejected, stick to Hermes-supported IDs: `deepseek-v4-flash` or `deepseek-v4-pro` (legacy `deepseek-chat` / `deepseek-reasoner` were retired).
 
 ## Telegram bot does not reply
 

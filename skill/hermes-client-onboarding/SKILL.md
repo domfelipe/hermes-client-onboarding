@@ -1,13 +1,13 @@
 ---
 name: hermes-client-onboarding
-description: Use when setting up Hermes for a client, install Hermes + Telegram + OpenRouter, run a demo setup, or launch client onboarding. Conducts guided conversational onboarding on a clean Linux VM (deepseek/deepseek-v4-flash, Telegram gateway, systemd, SOUL.md).
-version: 1.0.0
+description: Use when setting up Hermes for a client, install Hermes + Telegram + DeepSeek, run a demo setup, or launch client onboarding. Conducts guided conversational onboarding on a clean Linux VM (deepseek-v4-flash, Telegram gateway, systemd, SOUL.md).
+version: 1.1.0
 author: DomHubs
 license: MIT
 platforms: [linux, macos]
 metadata:
   hermes:
-    tags: [onboarding, client, telegram, openrouter, deepseek, gateway, demo]
+    tags: [onboarding, client, telegram, deepseek, gateway, demo]
     related_skills: []
 ---
 
@@ -15,14 +15,14 @@ metadata:
 
 ## Overview
 
-You are conducting a professional, step-by-step onboarding of Hermes Agent on a clean Ubuntu/Debian VM so a client can start using it immediately (primarily via Telegram). The goal is a working agent in minutes, with OpenRouter + DeepSeek V4 Flash as the default model, Telegram as the primary channel, and the gateway running as a persistent service.
+You are conducting a professional, step-by-step onboarding of Hermes Agent on a clean Ubuntu/Debian VM so a client can start using it immediately (primarily via Telegram). The goal is a working agent in minutes, with **native DeepSeek** (`DEEPSEEK_API_KEY`, provider `deepseek`) and model **`deepseek-v4-flash`** (V4 Flash 0731 family) as the default, Telegram as the primary channel, and the gateway running as a persistent service.
 
 This skill is designed for live demos in front of the client and for commercial handoff. Be clear, structured, and efficient. Always confirm critical values before applying them.
 
 ## When to Use
 
 - User asks to set up Hermes for a client
-- Demo setup of Hermes + Telegram + OpenRouter
+- Demo setup of Hermes + Telegram + DeepSeek
 - Launch of the DomHubs client onboarding flow
 - Fresh VM that needs Hermes ready end-to-end
 
@@ -33,8 +33,8 @@ Don't use for: day-to-day Hermes coding tasks after onboarding is done; multi-te
 The onboarding is complete only when all of the following are true:
 
 - Hermes is installed and `hermes` command works
-- Model is set to `deepseek/deepseek-v4-flash` via OpenRouter
-- `OPENROUTER_API_KEY` is configured
+- Model is set to `deepseek-v4-flash` with provider `deepseek`
+- `DEEPSEEK_API_KEY` is configured
 - Telegram bot token and at least one allowed user ID are set
 - Gateway is installed as a systemd service and is running
 - A test message sent to the Telegram bot receives a coherent reply
@@ -48,14 +48,14 @@ Run these checks silently or with minimal output before starting the dialogue:
 1. Confirm you are on Linux (preferably Ubuntu 22.04/24.04 or Debian). On macOS, warn that gateway persistence differs (launchd) and demos still work.
 2. Check if `hermes` is already in PATH. If yes, note the version with `hermes --version`.
 3. Check available disk space and RAM (`df -h /` and `free -h`). Warn if RAM < 2 GB or free disk < 5 GB.
-4. Verify internet connectivity (can reach `https://hermes-agent.nousresearch.com` and `https://openrouter.ai`).
+4. Verify internet connectivity (can reach `https://hermes-agent.nousresearch.com` and `https://api.deepseek.com`).
 
 If Hermes is missing, install it with:
 
 ```bash
 curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-browser
 source ~/.bashrc 2>/dev/null || true
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 ```
 
 After install, confirm with `hermes --version` and `hermes doctor`.
@@ -77,16 +77,16 @@ Ask:
 
 **Done when:** demo vs handoff, company name, language, and channel intent confirmed.
 
-### Phase 2 — OpenRouter Credentials
+### Phase 2 — DeepSeek Credentials
 
-1. Ask for the OpenRouter API key (format usually starts with `sk-or-v1-`).
+1. Ask for the DeepSeek API key from https://platform.deepseek.com/ (usually starts with `sk-`).
 2. Confirm the key is present and looks valid (do not echo the full key back).
 3. Apply it (prefer `scripts/apply-core-config.sh` when you already have Telegram values too; otherwise set now):
 
 ```bash
-hermes config set OPENROUTER_API_KEY "THE_KEY"
-hermes config set model.provider openrouter
-hermes config set model.default deepseek/deepseek-v4-flash
+hermes config set DEEPSEEK_API_KEY "THE_KEY"
+hermes config set model.provider deepseek
+hermes config set model.default deepseek-v4-flash
 ```
 
 4. Verify with:
@@ -96,9 +96,9 @@ hermes config get model.default
 hermes config get model.provider
 ```
 
-Optional: Offer to set a fallback model (e.g. another cheap OpenRouter model) if the user wants resilience.
+Optional: Offer fallback model `deepseek-v4-pro` if the user wants a stronger model (higher cost).
 
-**Done when:** provider=openrouter, model=deepseek/deepseek-v4-flash, key set without printing it.
+**Done when:** provider=deepseek, model=deepseek-v4-flash, key set without printing it.
 
 ### Phase 3 — Telegram Bot
 
@@ -175,7 +175,7 @@ Then instruct the user to send a test message to the Telegram bot (“oi” ou �
 Final checklist to present to the user:
 
 - [ ] Hermes installed and in PATH
-- [ ] Model = deepseek/deepseek-v4-flash via OpenRouter
+- [ ] Model = deepseek-v4-flash via provider deepseek (native API)
 - [ ] Telegram bot responding
 - [ ] Gateway running as service (survives reboot)
 - [ ] SOUL.md personalized
@@ -197,7 +197,7 @@ hermes update
 
 - If `hermes config set` fails, check file permissions on `~/.hermes/.env` and `~/.hermes/config.yaml`.
 - If Telegram does not respond: verify token with a direct `getMe` call, confirm Allowed Users, restart gateway, check logs for connection errors.
-- If OpenRouter returns auth errors: re-validate the key and model name (`deepseek/deepseek-v4-flash`).
+- If DeepSeek returns auth errors: re-validate `DEEPSEEK_API_KEY` and model name (`deepseek-v4-flash`). See `references/troubleshooting.md`.
 - Prefer fixing issues yourself when possible, then explain what was wrong in plain language.
 - Never leave the system in a half-configured state. Either finish a phase or clearly roll back.
 
@@ -212,7 +212,7 @@ hermes update
 ## Optional Extensions (only if requested)
 
 - Add Discord or WhatsApp after Telegram is working.
-- Switch to native DeepSeek provider later (`DEEPSEEK_API_KEY` + provider `deepseek`).
+- Switch to OpenRouter later (`OPENROUTER_API_KEY` + provider `openrouter` + OpenRouter model slug).
 - Enable extra tools or change terminal backend.
 - Create additional allowlisted users.
 - Set up a simple cron job or home channel for proactive messages.
@@ -220,7 +220,7 @@ hermes update
 ## Supporting Resources
 
 - `references/troubleshooting.md` — detailed fixes for the most common failures (Telegram not replying, auth errors, service problems, PATH issues).
-- `scripts/apply-core-config.sh` — safe helper to apply OpenRouter key + model + Telegram token + allowed users in one go. Prefer using it when you already have all three values confirmed.
+- `scripts/apply-core-config.sh` — safe helper to apply DeepSeek key + model + Telegram token + allowed users in one go. Prefer using it when you already have all three values confirmed.
 
 ## Reference Commands (quick lookup)
 
@@ -229,9 +229,9 @@ hermes update
 curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-browser
 
 # Core config (or use the helper script)
-hermes config set OPENROUTER_API_KEY "sk-or-..."
-hermes config set model.provider openrouter
-hermes config set model.default deepseek/deepseek-v4-flash
+hermes config set DEEPSEEK_API_KEY "sk-..."
+hermes config set model.provider deepseek
+hermes config set model.default deepseek-v4-flash
 hermes config set TELEGRAM_BOT_TOKEN "..."
 hermes config set TELEGRAM_ALLOWED_USERS "123456789"
 

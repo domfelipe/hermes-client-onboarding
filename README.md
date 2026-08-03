@@ -2,7 +2,7 @@
 
 One-liner + skill conversacional para deixar o **Hermes Agent** pronto no cliente em minutos:
 
-- OpenRouter + `deepseek/deepseek-v4-flash`
+- DeepSeek nativo + `deepseek-v4-flash` (V4 Flash 0731)
 - Telegram (gateway como serviço)
 - Personalidade em `SOUL.md`
 - Setup guiado por LLM (Codex ou Hermes)
@@ -96,7 +96,9 @@ Só se embutir a skill no script. Prefira GitHub raw.
 
 | Item | Valor |
 |------|--------|
-| Modelo | `deepseek/deepseek-v4-flash` via OpenRouter |
+| Provider | `deepseek` (API nativa) |
+| Modelo | `deepseek-v4-flash` (V4 Flash 0731) |
+| Secret | `DEEPSEEK_API_KEY` |
 | Canal | Telegram |
 | Gateway | `hermes gateway install` (systemd/launchd) |
 | Soul | `~/.hermes/SOUL.md` |
@@ -128,9 +130,17 @@ hermes gateway status
 
 ```bash
 ~/.hermes/skills/hermes-client-onboarding/scripts/apply-core-config.sh \
-  --openrouter-key "$OPENROUTER_API_KEY" \
+  --deepseek-key "$DEEPSEEK_API_KEY" \
   --telegram-token "$TELEGRAM_BOT_TOKEN" \
   --allowed-users "123456789"
+```
+
+Equivalente manual:
+
+```bash
+hermes config set DEEPSEEK_API_KEY "sk-..."
+hermes config set model.provider deepseek
+hermes config set model.default deepseek-v4-flash
 ```
 
 Não imprime secrets.
