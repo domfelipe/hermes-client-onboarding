@@ -9,29 +9,30 @@ One-liner + skill conversacional para deixar o **Hermes Agent** pronto no client
 
 ## One-liner (produção)
 
-Repo: https://github.com/domfelipe/hermes-client-onboarding
-
 ```bash
-curl -fsSL https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main/install.sh | bash
+curl -fsSL https://setup.domhubs.com.br/hermes | bash
 ```
 
 Variantes:
 
 ```bash
 # só instalar skill + Hermes, sem abrir agente
-curl -fsSL https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main/install.sh | bash -s -- --no-launch
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --no-launch
 
 # forçar condutor
-curl -fsSL https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main/install.sh | bash -s -- --conductor hermes
-curl -fsSL https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main/install.sh | bash -s -- --conductor codex
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --conductor hermes
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --conductor codex
 ```
 
-Alias de domínio (opcional, depois de apontar DNS/proxy):
+Espelho GitHub (fallback):
 
 ```bash
-# quando setup.domhubs.com.br/hermes estiver no ar
-curl -fsSL https://setup.domhubs.com.br/hermes | bash
+curl -fsSL https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main/install.sh | bash
+# se usar o raw, force o BASE da skill se precisar:
+# HERMES_ONBOARD_BASE=https://setup.domhubs.com.br/hermes bash
 ```
+
+Repo: https://github.com/domfelipe/hermes-client-onboarding
 
 ## Layout
 
@@ -63,7 +64,7 @@ chmod +x install.sh skill/hermes-client-onboarding/scripts/apply-core-config.sh
 
 O `install.sh` baixa a skill de `HERMES_ONBOARD_BASE` quando **não** está rodando a partir de um checkout com `skill/`.
 
-**Default atual:** `https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main`
+**Default atual:** `https://setup.domhubs.com.br/hermes` (VPS `169.58.116.28`, Caddy + Let’s Encrypt)
 
 ### Opção A — GitHub raw (já no ar)
 

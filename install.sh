@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SKILL_NAME="hermes-client-onboarding"
-DEFAULT_BASE="${HERMES_ONBOARD_BASE:-https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main}"
+DEFAULT_BASE="${HERMES_ONBOARD_BASE:-https://setup.domhubs.com.br/hermes}"
 HERMES_INSTALL_URL="${HERMES_INSTALL_URL:-https://hermes-agent.nousresearch.com/install.sh}"
 KICKOFF_MSG="${HERMES_ONBOARD_KICKOFF:-Inicie agora o onboarding de cliente Hermes. Siga a skill hermes-client-onboarding fase a fase (Phase 1 primeiro). Fale em português brasileiro.}"
 
