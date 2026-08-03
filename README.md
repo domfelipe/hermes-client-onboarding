@@ -9,19 +9,28 @@ One-liner + skill conversacional para deixar o **Hermes Agent** pronto no client
 
 ## One-liner (produção)
 
+Repo: https://github.com/domfelipe/hermes-client-onboarding
+
 ```bash
-curl -fsSL https://setup.domhubs.com.br/hermes | bash
+curl -fsSL https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main/install.sh | bash
 ```
 
 Variantes:
 
 ```bash
 # só instalar skill + Hermes, sem abrir agente
-curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --no-launch
+curl -fsSL https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main/install.sh | bash -s -- --no-launch
 
 # forçar condutor
-curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --conductor hermes
-curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --conductor codex
+curl -fsSL https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main/install.sh | bash -s -- --conductor hermes
+curl -fsSL https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main/install.sh | bash -s -- --conductor codex
+```
+
+Alias de domínio (opcional, depois de apontar DNS/proxy):
+
+```bash
+# quando setup.domhubs.com.br/hermes estiver no ar
+curl -fsSL https://setup.domhubs.com.br/hermes | bash
 ```
 
 ## Layout
@@ -52,33 +61,35 @@ chmod +x install.sh skill/hermes-client-onboarding/scripts/apply-core-config.sh
 
 ## Hospedagem do one-liner
 
-O `install.sh` baixa a skill de `HERMES_ONBOARD_BASE` (default `https://setup.domhubs.com.br/hermes`) quando **não** está rodando a partir de um checkout com `skill/`.
+O `install.sh` baixa a skill de `HERMES_ONBOARD_BASE` quando **não** está rodando a partir de um checkout com `skill/`.
 
-### Opção A — Domínio próprio (recomendado)
+**Default atual:** `https://raw.githubusercontent.com/domfelipe/hermes-client-onboarding/main`
 
-Publique arquivos estáticos:
+### Opção A — GitHub raw (já no ar)
+
+Funciona sem infra extra. URLs:
+
+| Path | Uso |
+|------|-----|
+| `.../main/install.sh` | bootstrap |
+| `.../main/skill/hermes-client-onboarding/SKILL.md` | skill |
+| `.../main/skill/.../references/troubleshooting.md` | ref |
+| `.../main/skill/.../scripts/apply-core-config.sh` | helper |
+
+### Opção B — Domínio próprio (VPS / Coolify)
+
+Proxy reverso para raw do GitHub ou serve o clone estático:
 
 | URL | Arquivo |
 |-----|---------|
-| `https://setup.domhubs.com.br/hermes` | `install.sh` (Content-Type: text/plain) |
-| `https://setup.domhubs.com.br/hermes/skill/hermes-client-onboarding/SKILL.md` | skill |
-| `.../references/troubleshooting.md` | ref |
-| `.../scripts/apply-core-config.sh` | script |
+| `https://setup.domhubs.com.br/hermes` | `install.sh` |
+| `https://setup.domhubs.com.br/hermes/skill/...` | skill tree |
 
-Nginx/Caddy exemplo (path prefix `/hermes` → root do repo, com rewrite de `/hermes` → `install.sh`).
-
-### Opção B — GitHub raw
-
-```bash
-export HERMES_ONBOARD_BASE="https://raw.githubusercontent.com/<org>/hermes-client-onboarding/main"
-curl -fsSL "$HERMES_ONBOARD_BASE/install.sh" | bash
-```
-
-Ou grave esse `BASE` no topo do `install.sh` antes de publicar.
+Nginx/Caddy: path `/hermes` → root do repo (rewrite `/hermes` → `install.sh`).
 
 ### Opção C — Gist
 
-Gist single-file só serve se a skill for embutida. Prefira repo/GitHub raw.
+Só se embutir a skill no script. Prefira GitHub raw.
 
 ## Stack padrão (decisões)
 
