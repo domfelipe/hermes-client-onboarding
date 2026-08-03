@@ -25,6 +25,7 @@ curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-
 hermes config set DEEPSEEK_API_KEY "THE_KEY"
 hermes config set model.provider deepseek
 hermes config set model.default deepseek-v4-flash
+hermes config set model.base_url "https://api.deepseek.com/v1"
 ```
 
 3. Check:
@@ -32,7 +33,14 @@ hermes config set model.default deepseek-v4-flash
 ```bash
 hermes config get model.default
 hermes config get model.provider
+hermes config get model.base_url
 # key lives in ~/.hermes/.env — never cat full file in front of client
+```
+
+If HTTP 401 "Missing Authentication header" with a valid key: `model.base_url` is probably still OpenRouter. Force DeepSeek:
+
+```bash
+hermes config set model.base_url "https://api.deepseek.com/v1"
 ```
 
 4. Test connectivity: `curl -sI https://api.deepseek.com | head -1`

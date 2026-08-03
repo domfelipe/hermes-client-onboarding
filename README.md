@@ -141,6 +141,7 @@ Equivalente manual:
 hermes config set DEEPSEEK_API_KEY "sk-..."
 hermes config set model.provider deepseek
 hermes config set model.default deepseek-v4-flash
+hermes config set model.base_url "https://api.deepseek.com/v1"
 ```
 
 Não imprime secrets.

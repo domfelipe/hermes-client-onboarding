@@ -52,13 +52,20 @@ if [[ ! "$TG_USERS" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
   exit 1
 fi
 
+BASE_URL="https://api.deepseek.com/v1"
+if [[ "$PROVIDER" == "openrouter" ]]; then
+  BASE_URL="https://openrouter.ai/api/v1"
+fi
+
 hermes config set DEEPSEEK_API_KEY "$DS_KEY"
 hermes config set model.provider "$PROVIDER"
 hermes config set model.default "$MODEL"
+hermes config set model.base_url "$BASE_URL"
 hermes config set TELEGRAM_BOT_TOKEN "$TG_TOKEN"
 hermes config set TELEGRAM_ALLOWED_USERS "$TG_USERS"
 
 echo "ok: provider=$(hermes config get model.provider 2>/dev/null || echo "$PROVIDER")"
 echo "ok: model=$(hermes config get model.default 2>/dev/null || echo "$MODEL")"
+echo "ok: base_url=$(hermes config get model.base_url 2>/dev/null || echo "$BASE_URL")"
 echo "ok: allowed_users=$TG_USERS"
 echo "ok: secrets written (not displayed)"

@@ -87,13 +87,17 @@ Ask:
 hermes config set DEEPSEEK_API_KEY "THE_KEY"
 hermes config set model.provider deepseek
 hermes config set model.default deepseek-v4-flash
+hermes config set model.base_url "https://api.deepseek.com/v1"
 ```
+
+Important: always set `model.base_url` to the DeepSeek API. A leftover OpenRouter URL causes HTTP 401 ("Missing Authentication header") even with a valid `DEEPSEEK_API_KEY`.
 
 4. Verify with:
 
 ```bash
 hermes config get model.default
 hermes config get model.provider
+hermes config get model.base_url
 ```
 
 Optional: Offer fallback model `deepseek-v4-pro` if the user wants a stronger model (higher cost).
@@ -232,6 +236,7 @@ curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-
 hermes config set DEEPSEEK_API_KEY "sk-..."
 hermes config set model.provider deepseek
 hermes config set model.default deepseek-v4-flash
+hermes config set model.base_url "https://api.deepseek.com/v1"
 hermes config set TELEGRAM_BOT_TOKEN "..."
 hermes config set TELEGRAM_ALLOWED_USERS "123456789"
 
