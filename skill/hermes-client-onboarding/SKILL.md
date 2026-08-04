@@ -1,13 +1,13 @@
 ---
 name: hermes-client-onboarding
 description: Use when setting up Hermes for a client, install Hermes + Telegram + DeepSeek, run a demo setup, or launch client onboarding. Conducts guided conversational onboarding on a clean Linux VM (deepseek-v4-flash, Telegram gateway, systemd, SOUL.md).
-version: 1.2.0
+version: 1.3.0
 author: DomHubs
 license: MIT
 platforms: [linux, macos]
 metadata:
   hermes:
-    tags: [onboarding, client, telegram, deepseek, gateway, demo]
+    tags: [onboarding, client, telegram, deepseek, gateway, demo, vps]
     related_skills: []
 ---
 
@@ -15,7 +15,7 @@ metadata:
 
 ## Overview
 
-You are conducting a professional, step-by-step onboarding of Hermes Agent on a clean Ubuntu/Debian VM so a client can start using it immediately (primarily via Telegram). The goal is a working agent in minutes, with **native DeepSeek** (`DEEPSEEK_API_KEY`, provider `deepseek`) and model **`deepseek-v4-flash`** (V4 Flash 0731 family) as the default, Telegram as the primary channel, and the gateway running as a persistent service.
+You are conducting a professional, step-by-step onboarding of Hermes Agent on a clean Ubuntu/Debian **VPS** so a client can start using it immediately (primarily via Telegram). The goal is a working agent in minutes, with **native DeepSeek** (`DEEPSEEK_API_KEY`, provider `deepseek`) and model **`deepseek-v4-flash`** (V4 Flash 0731 family) as the default, Telegram as the primary channel, and the gateway running as a persistent service.
 
 This skill is designed for live demos in front of the client and for commercial handoff. Be clear, structured, and efficient. Always confirm critical values before applying them.
 
@@ -24,7 +24,7 @@ This skill is designed for live demos in front of the client and for commercial 
 - User asks to set up Hermes for a client
 - Demo setup of Hermes + Telegram + DeepSeek
 - Launch of the DomHubs client onboarding flow
-- Fresh VM that needs Hermes ready end-to-end
+- Fresh VM/VPS that needs Hermes ready end-to-end
 
 Don't use for: day-to-day Hermes coding tasks after onboarding is done; multi-tenant fleet orchestration; non-Hermes agent installs.
 
@@ -32,6 +32,7 @@ Don't use for: day-to-day Hermes coding tasks after onboarding is done; multi-te
 
 The onboarding is complete only when all of the following are true:
 
+- Operator can **SSH into the VPS** and re-enter when needed
 - Hermes is installed and `hermes` command works
 - Model is set to `deepseek-v4-flash` with provider `deepseek`
 - `DEEPSEEK_API_KEY` is configured
@@ -41,14 +42,63 @@ The onboarding is complete only when all of the following are true:
 - `hermes doctor` reports no critical errors
 - SOUL.md has been personalized (or the user explicitly skipped it)
 
+## Phase 0 — Entrar na VPS (antes de tudo)
+
+Onboarding runs **inside** the Linux VPS, not on the operator’s laptop. First step is always SSH.
+
+**Generic (any client VM):**
+
+```bash
+ssh root@IP_DA_VPS
+# or: ssh USER@IP_DA_VPS
+```
+
+**DomHubs ops alias (operator Mac, after key is set):**
+
+```bash
+ssh domhubs-vps
+# Host: 169.58.116.28  User: root  Key: ~/.ssh/domhubs_vps
+```
+
+**Then, already on the VPS, bootstrap + this skill (one-liner):**
+
+```bash
+curl -fsSL https://setup.domhubs.com.br/hermes | bash
+```
+
+Variants on the VPS:
+
+```bash
+# install only (no auto-launch)
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --no-launch
+
+# re-open onboarding later
+hermes-client-onboarding
+```
+
+If the session drops mid-onboarding, reconnect with the same `ssh` and reattach tmux if used:
+
+```bash
+ssh root@IP_DA_VPS   # or: ssh domhubs-vps
+tmux ls
+tmux attach -t hermes-onboard-<pid>   # if the launcher created one
+# or restart onboarding:
+hermes-client-onboarding
+```
+
+In Phase 6 handover, **always** leave the client/operator with the exact SSH command for *their* IP (do not invent IPs).
+
+**Done when:** shell is on the target Linux VPS (hostname/IP known) and you can run commands as the deploy user (usually `root`).
+
 ## Pre-flight Checks (do these first)
 
 Run these checks silently or with minimal output before starting the dialogue:
 
-1. Confirm you are on Linux (preferably Ubuntu 22.04/24.04 or Debian). On macOS, warn that gateway persistence differs (launchd) and demos still work.
-2. Check if `hermes` is already in PATH. If yes, note the version with `hermes --version`.
-3. Check available disk space and RAM (`df -h /` and `free -h`). Warn if RAM < 2 GB or free disk < 5 GB.
-4. Verify internet connectivity (can reach `https://hermes-agent.nousresearch.com` and `https://api.deepseek.com`).
+1. Confirm you are **already on the VPS via SSH** (Phase 0). If the user is still on a laptop UI only, give them the `ssh` command first — do not pretend Hermes can install on their phone.
+2. Confirm you are on Linux (preferably Ubuntu 22.04/24.04 or Debian). On macOS, warn that gateway persistence differs (launchd) and production clients should be Ubuntu/Debian VMs.
+3. Check if `hermes` is already in PATH. If yes, note the version with `hermes --version`.
+4. Check available disk space and RAM (`df -h /` and `free -h`). Warn if RAM < 2 GB or free disk < 5 GB.
+5. Verify internet connectivity (can reach `https://hermes-agent.nousresearch.com` and `https://api.deepseek.com`).
 
 If Hermes is missing, install it with:
 
@@ -60,7 +110,7 @@ export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 
 After install, confirm with `hermes --version` and `hermes doctor`.
 
-**Done when:** OS/resources known, Hermes on PATH, version recorded.
+**Done when:** SSH session on VPS confirmed, OS/resources known, Hermes on PATH, version recorded.
 
 ## Conversational Flow
 
@@ -226,6 +276,10 @@ Final checklist to present to the user:
 Give the user the useful commands for later:
 
 ```bash
+# Re-enter the VPS (fill real IP / use DomHubs alias)
+ssh root@IP_DA_VPS
+# ssh domhubs-vps
+
 hermes gateway status
 hermes gateway logs
 hermes doctor
@@ -233,7 +287,7 @@ hermes config get model.default
 hermes update
 ```
 
-**Done when:** checklist walked, test Telegram reply confirmed, useful commands delivered.
+**Done when:** checklist walked, test Telegram reply confirmed, SSH re-entry command + useful commands delivered.
 
 ## Error Handling Guidelines
 
@@ -267,7 +321,14 @@ hermes update
 ## Reference Commands (quick lookup)
 
 ```bash
-# Install
+# Enter VPS first
+ssh root@IP_DA_VPS
+# DomHubs ops: ssh domhubs-vps
+
+# DomHubs one-liner (on the VPS)
+curl -fsSL https://setup.domhubs.com.br/hermes | bash
+
+# Install Hermes only
 curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-browser
 
 # Core config (or use the helper script)

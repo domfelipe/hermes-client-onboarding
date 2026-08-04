@@ -7,7 +7,24 @@ One-liner + skill conversacional para deixar o **Hermes Agent** pronto no client
 - Personalidade em `SOUL.md`
 - Setup guiado por LLM (Codex ou Hermes)
 
-## One-liner (produção) — comando único
+## One-liner (produção) — entrar na VPS + instalar
+
+O bootstrap roda **dentro da VPS Linux**, não no Mac do operador.
+
+### 1) Entrar na VPS
+
+```bash
+ssh root@IP_DA_VPS
+```
+
+DomHubs ops (alias no Mac, após chave `~/.ssh/domhubs_vps`):
+
+```bash
+ssh domhubs-vps
+# → root@169.58.116.28
+```
+
+### 2) One-liner (já dentro da VPS)
 
 ```bash
 curl -fsSL https://setup.domhubs.com.br/hermes | bash
@@ -15,7 +32,7 @@ curl -fsSL https://setup.domhubs.com.br/hermes | bash
 
 Instala/atualiza Hermes + skill + launcher e **abre o onboarding** (condutor Hermes por padrão).
 
-Variantes:
+Variantes (ainda na VPS):
 
 ```bash
 # só instalar, sem abrir agente
@@ -23,6 +40,14 @@ curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --no-launch
 
 # perguntar Codex vs Hermes
 curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --ask-conductor
+```
+
+### 3) Voltar depois
+
+```bash
+ssh root@IP_DA_VPS   # ou: ssh domhubs-vps
+hermes gateway status
+hermes-client-onboarding   # se precisar retomar o onboarding
 ```
 
 Espelho GitHub (fallback):

@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 # DomHubs — Hermes Client Onboarding bootstrap
-# One-liner: curl -fsSL https://setup.domhubs.com.br/hermes | bash
-# Local:     ./install.sh [--conductor codex|hermes|skip] [--no-launch]
+#
+# Run ON the client VPS (after SSH). Not on the operator laptop alone.
+#
+# Enter VPS:
+#   ssh root@IP_DA_VPS
+#   # DomHubs ops alias: ssh domhubs-vps   (169.58.116.28, key ~/.ssh/domhubs_vps)
+#
+# Then one-liner (inside the VPS):
+#   curl -fsSL https://setup.domhubs.com.br/hermes | bash
+#
+# Local checkout: ./install.sh [--conductor codex|hermes|skip] [--no-launch]
 set -euo pipefail
 
 SKILL_NAME="hermes-client-onboarding"
@@ -20,6 +29,13 @@ die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 usage() {
   cat <<'EOF'
 Usage: install.sh [options]
+
+  Run this ON the Linux VPS after SSH:
+    ssh root@IP_DA_VPS
+    curl -fsSL https://setup.domhubs.com.br/hermes | bash
+
+  DomHubs ops (Mac alias):
+    ssh domhubs-vps
 
   --conductor codex|hermes|skip   Who runs onboarding (default: hermes; use skip for install-only)
   --no-launch                     Install only; do not start the conductor
@@ -278,11 +294,18 @@ launch_conductor() {
 # ---------------------------------------------------------------------------
 main() {
   log "DomHubs Hermes Client Onboarding"
+  log "Target: this machine (run via SSH on the client VPS)"
+  if [[ "$(uname -s 2>/dev/null || true)" == "Darwin" ]]; then
+    warn "You appear to be on macOS. Production onboarding expects Ubuntu/Debian VPS:"
+    warn "  ssh root@IP_DA_VPS"
+    warn "  curl -fsSL https://setup.domhubs.com.br/hermes | bash"
+  fi
   ensure_hermes
   install_skill
 
   if [[ "$NO_LAUNCH" -eq 1 ]]; then
-    log "Done (--no-launch). Start with (agent speaks first):"
+    log "Done (--no-launch). Re-enter VPS later with: ssh root@IP_DA_VPS  (or ssh domhubs-vps)"
+    log "Start with (agent speaks first):"
     echo "  hermes-client-onboarding"
     echo "  # ou: hermes chat --tui -s ${SKILL_NAME} -q \"…\""
     exit 0

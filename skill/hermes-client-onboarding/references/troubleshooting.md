@@ -1,5 +1,18 @@
 # Troubleshooting — Hermes Client Onboarding
 
+## Cannot reach the machine / “where do I run this?”
+
+Onboarding runs **on the VPS**. From the laptop:
+
+```bash
+ssh root@IP_DA_VPS
+# DomHubs ops: ssh domhubs-vps
+
+curl -fsSL https://setup.domhubs.com.br/hermes | bash
+```
+
+If SSH fails: check IP, user (`root` vs `ubuntu`), key (`-i ~/.ssh/…`), and provider firewall (port 22).
+
 ## PATH / `hermes: command not found`
 
 ```bash
