@@ -49,26 +49,47 @@ hermes config set model.base_url "https://api.deepseek.com/v1"
 
 ## Telegram bot does not reply
 
+### Log signature: `Blocked unauthorized user`
+
+The gateway **ignores** the sender because `TELEGRAM_ALLOWED_USERS` in **`~/.hermes/.env`** does not include their numeric ID.
+
+**Root cause seen in production:** `hermes config set TELEGRAM_ALLOWED_USERS "..."` may leave a **stale** line in `.env` (or write somewhere the gateway does not use). Gateway loads allowlist from **`.env`**, not from a yaml-only mirror.
+
+**Fix:**
+
+```bash
+# See what gateway will actually load (do not paste tokens into chat)
+grep -E '^TELEGRAM_(BOT_TOKEN|ALLOWED_USERS)=' ~/.hermes/.env
+
+# Set again, then re-grep until ALLOWED_USERS is exactly the new IDs
+hermes config set TELEGRAM_ALLOWED_USERS "ID1,ID2"
+grep -E '^TELEGRAM_ALLOWED_USERS=' ~/.hermes/.env
+
+# If still stale, rewrite the line (example):
+# sed -i.bak '/^TELEGRAM_ALLOWED_USERS=/d' ~/.hermes/.env
+# echo 'TELEGRAM_ALLOWED_USERS=ID1,ID2' >> ~/.hermes/.env
+chmod 600 ~/.hermes/.env
+
+hermes gateway restart
+# Linux (user service): journalctl --user -u hermes-gateway -n 50 --no-pager
+# macOS: tail -n 50 ~/.hermes/logs/gateway.log
+```
+
+### Other checks
+
 1. Token validity:
 
 ```bash
-# TOKEN from env; do not log it
 source ~/.hermes/.env 2>/dev/null || true
 curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" | head -c 200
 ```
 
-2. Allowed users: numeric IDs only (from @userinfobot). Restart after change:
-
-```bash
-hermes config set TELEGRAM_ALLOWED_USERS "ID1,ID2"
-hermes gateway restart
-hermes gateway status
-hermes gateway logs
-```
+2. Allowed users must be **numeric** IDs only (@userinfobot / @get_id_bot), comma-separated.
 
 3. Common mistakes:
-   - User ID is username string instead of numeric ID
-   - Gateway not running
+   - Username string instead of numeric ID
+   - Stale ALLOWED_USERS in `.env` after a previous client on the same machine
+   - Gateway not running / not restarted after env change
    - Bot blocked by user / wrong bot
 
 ## Gateway service won't start

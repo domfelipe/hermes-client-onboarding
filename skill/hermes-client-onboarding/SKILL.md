@@ -1,7 +1,7 @@
 ---
 name: hermes-client-onboarding
 description: Use when setting up Hermes for a client, install Hermes + Telegram + DeepSeek, run a demo setup, or launch client onboarding. Conducts guided conversational onboarding on a clean Linux VM (deepseek-v4-flash, Telegram gateway, systemd, SOUL.md).
-version: 1.1.0
+version: 1.2.0
 author: DomHubs
 license: MIT
 platforms: [linux, macos]
@@ -122,24 +122,44 @@ Optional: Offer fallback model `deepseek-v4-pro` if the user wants a stronger mo
 
 **Done when:** provider=deepseek, model=deepseek-v4-flash, key set without printing it.
 
-### Phase 3 — Telegram Bot
+### Phase 3 — Telegram Bot (client creates their agent)
 
-1. Guide the user (or do it yourself if they give you the token) to create a bot with @BotFather if they do not have one yet.
+The client owns the bot — guide **them** to create it (interactive, no BotFather quota on DomHubs). Narrative: “você está criando o seu agente de IA”.
+
+1. Ask them to open Telegram (company account preferred) and talk to @BotFather:
+   - `/newbot` → choose display name + username ending in `bot`
+   - Copy the **HTTP API token**
 2. Collect:
    - `TELEGRAM_BOT_TOKEN`
-   - At least one numeric User ID (from @userinfobot or @get_id_bot). Multiple IDs can be comma-separated.
-3. Apply:
+   - At least one **numeric** User ID (from @userinfobot or @get_id_bot). Multiple IDs comma-separated.
+3. Apply **and force the values into `~/.hermes/.env`** (source of truth for the gateway):
 
 ```bash
 hermes config set TELEGRAM_BOT_TOKEN "TOKEN"
 hermes config set TELEGRAM_ALLOWED_USERS "ID1,ID2"
 ```
 
-4. Optional advanced settings (only if requested):
-   - Home channel for proactive messages
-   - Group chat IDs
+**Critical pitfall (do not skip):** the messaging gateway reads allowlist / token from **`~/.hermes/.env`**, not from a free-form key dumped only into `config.yaml`. An **old** `TELEGRAM_ALLOWED_USERS=` line in `.env` silently wins → bot ignores the client and logs:
 
-**Done when:** token set, at least one allowed user ID set, values repeated back (IDs only, never full token).
+```text
+Blocked unauthorized user
+```
+
+After every `config set` for Telegram secrets:
+
+```bash
+# Verify .env actually has the NEW ids (do not print full token)
+grep -E '^TELEGRAM_ALLOWED_USERS=' ~/.hermes/.env
+# If stale or missing, write explicitly:
+# printf 'TELEGRAM_ALLOWED_USERS=%s\n' 'ID1,ID2' >> ~/.hermes/.env   # or edit in place
+# Prefer: hermes config set again, then re-grep
+```
+
+If `.env` still shows the wrong ID after `config set`, rewrite the line yourself (sed/python) so only the new IDs remain, `chmod 600 ~/.hermes/.env`, then restart gateway (Phase 5).
+
+4. Optional advanced settings (only if requested): home channel, group chat IDs.
+
+**Done when:** token set, allowed user IDs confirmed in **`.env`**, values repeated back (IDs only, never full token).
 
 ### Phase 4 — Agent Personality (SOUL.md)
 
@@ -218,7 +238,7 @@ hermes update
 ## Error Handling Guidelines
 
 - If `hermes config set` fails, check file permissions on `~/.hermes/.env` and `~/.hermes/config.yaml`.
-- If Telegram does not respond: verify token with a direct `getMe` call, confirm Allowed Users, restart gateway, check logs for connection errors.
+- If Telegram does not respond: verify token with `getMe`, confirm **`TELEGRAM_ALLOWED_USERS` inside `~/.hermes/.env`** (not only yaml), restart gateway. Log signature of wrong allowlist: `Blocked unauthorized user`.
 - If DeepSeek returns auth errors: re-validate `DEEPSEEK_API_KEY` and model name (`deepseek-v4-flash`). See `references/troubleshooting.md`.
 - Prefer fixing issues yourself when possible, then explain what was wrong in plain language.
 - Never leave the system in a half-configured state. Either finish a phase or clearly roll back.
@@ -257,12 +277,14 @@ hermes config set model.default deepseek-v4-flash
 hermes config set model.base_url "https://api.deepseek.com/v1"
 hermes config set TELEGRAM_BOT_TOKEN "..."
 hermes config set TELEGRAM_ALLOWED_USERS "123456789"
+grep -E '^TELEGRAM_ALLOWED_USERS=' ~/.hermes/.env   # must match IDs above
 
 # Gateway
 hermes gateway install
-hermes gateway start
+hermes gateway restart
 hermes gateway status
-hermes gateway logs
+# Linux: journalctl --user -u hermes-gateway -n 50
+# macOS: tail -f ~/.hermes/logs/gateway.log
 
 # Validation
 hermes doctor

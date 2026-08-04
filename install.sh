@@ -9,7 +9,7 @@ DEFAULT_BASE="${HERMES_ONBOARD_BASE:-https://setup.domhubs.com.br/hermes}"
 HERMES_INSTALL_URL="${HERMES_INSTALL_URL:-https://hermes-agent.nousresearch.com/install.sh}"
 KICKOFF_MSG="${HERMES_ONBOARD_KICKOFF:-Inicie o onboarding agora. Skill hermes-client-onboarding. Pre-flight silencioso e Phase 1 (voce fala primeiro).}"
 
-CONDUCTOR="${HERMES_ONBOARD_CONDUCTOR:-}"
+CONDUCTOR="${HERMES_ONBOARD_CONDUCTOR:-hermes}"
 NO_LAUNCH=0
 NONINTERACTIVE=0
 
@@ -21,10 +21,11 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [options]
 
-  --conductor codex|hermes|skip   Who runs the guided onboarding (default: prompt)
+  --conductor codex|hermes|skip   Who runs onboarding (default: hermes; use skip for install-only)
   --no-launch                     Install only; do not start the conductor
   --base URL                      Asset base for skill files (or HERMES_ONBOARD_BASE)
-  --non-interactive               No prompts; default conductor=hermes if unset
+  --non-interactive               No prompts
+  --ask-conductor                 Prompt for conductor even when default is hermes
   -h, --help                      Show help
 
 Env:
@@ -33,12 +34,14 @@ Env:
 EOF
 }
 
+ASK_CONDUCTOR=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --conductor) CONDUCTOR="${2:-}"; shift 2 ;;
     --no-launch) NO_LAUNCH=1; shift ;;
     --base) DEFAULT_BASE="${2:-}"; shift 2 ;;
     --non-interactive) NONINTERACTIVE=1; shift ;;
+    --ask-conductor) ASK_CONDUCTOR=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown arg: $1" ;;
   esac
@@ -176,18 +179,18 @@ install_skill() {
 # Conductor selection + launch
 # ---------------------------------------------------------------------------
 pick_conductor() {
-  if [[ -n "$CONDUCTOR" ]]; then
+  # Default path for one-liner demos: hermes (set above). Only prompt if asked.
+  if [[ "$ASK_CONDUCTOR" -eq 0 && -n "$CONDUCTOR" ]]; then
     echo "$CONDUCTOR"
     return
   fi
   if [[ "$NONINTERACTIVE" -eq 1 ]]; then
-    if need_cmd codex; then echo codex; else echo hermes; fi
+    echo "${CONDUCTOR:-hermes}"
     return
   fi
-  # curl|bash: stdin is the script pipe — read prompts from the real TTY when possible
   local tty_in="/dev/tty"
   if [[ ! -r "$tty_in" ]]; then
-    if need_cmd codex; then echo codex; else echo hermes; fi
+    echo "${CONDUCTOR:-hermes}"
     return
   fi
 
@@ -197,15 +200,15 @@ pick_conductor() {
   echo "" >&2
   echo "Quem deve conduzir o onboarding conversacional?" >&2
   if [[ "$has_codex" -eq 1 ]]; then
-    echo "  1) Codex (recomendado se disponível)" >&2
-    echo "  2) Hermes (modelos baratos / já instalado)" >&2
+    echo "  1) Hermes (default — DeepSeek barato)" >&2
+    echo "  2) Codex" >&2
     echo "  3) Só instalar skill — não abrir agente" >&2
     printf "Escolha [1]: " >&2
     read -r ans <"$tty_in" || ans=1
     case "${ans:-1}" in
-      2|hermes|h) echo hermes ;;
-      3|skip|s)   echo skip ;;
-      *)           echo codex ;;
+      2|codex|c) echo codex ;;
+      3|skip|s)  echo skip ;;
+      *)         echo hermes ;;
     esac
   else
     echo "  1) Hermes" >&2

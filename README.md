@@ -7,21 +7,22 @@ One-liner + skill conversacional para deixar o **Hermes Agent** pronto no client
 - Personalidade em `SOUL.md`
 - Setup guiado por LLM (Codex ou Hermes)
 
-## One-liner (produção)
+## One-liner (produção) — comando único
 
 ```bash
 curl -fsSL https://setup.domhubs.com.br/hermes | bash
 ```
 
+Instala/atualiza Hermes + skill + launcher e **abre o onboarding** (condutor Hermes por padrão).
+
 Variantes:
 
 ```bash
-# só instalar skill + Hermes, sem abrir agente
+# só instalar, sem abrir agente
 curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --no-launch
 
-# forçar condutor
-curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --conductor hermes
-curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --conductor codex
+# perguntar Codex vs Hermes
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --ask-conductor
 ```
 
 Espelho GitHub (fallback):
