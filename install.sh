@@ -7,20 +7,23 @@
 #   ssh root@IP_DA_VPS
 #   # DomHubs ops alias: ssh domhubs-vps   (169.58.116.28, key ~/.ssh/domhubs_vps)
 #
-# Then one-liner (inside the VPS):
-#   curl -fsSL https://setup.domhubs.com.br/hermes | bash
+# Then one-liner (inside the VPS) — SHARED host multi-tenant:
+#   curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --client flavia
 #
-# Local checkout: ./install.sh [--conductor codex|hermes|skip] [--no-launch]
+# Each --client creates an isolated Hermes profile + gateway unit.
+# Local checkout: ./install.sh --client SLUG [--conductor hermes|skip] [--no-launch]
 set -euo pipefail
 
 SKILL_NAME="hermes-client-onboarding"
 DEFAULT_BASE="${HERMES_ONBOARD_BASE:-https://setup.domhubs.com.br/hermes}"
 HERMES_INSTALL_URL="${HERMES_INSTALL_URL:-https://hermes-agent.nousresearch.com/install.sh}"
-KICKOFF_MSG="${HERMES_ONBOARD_KICKOFF:-Inicie o onboarding agora. Skill hermes-client-onboarding. Pre-flight silencioso e Phase 1 (voce fala primeiro).}"
+KICKOFF_MSG="${HERMES_ONBOARD_KICKOFF:-}"
 
 CONDUCTOR="${HERMES_ONBOARD_CONDUCTOR:-hermes}"
+CLIENT_SLUG="${HERMES_CLIENT_SLUG:-}"
 NO_LAUNCH=0
 NONINTERACTIVE=0
+REQUIRE_CLIENT="${HERMES_REQUIRE_CLIENT:-1}"
 
 log()  { printf '==> %s\n' "$*"; }
 warn() { printf 'warn: %s\n' "$*" >&2; }
@@ -30,40 +33,44 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [options]
 
-  Run this ON the Linux VPS after SSH:
-    ssh root@IP_DA_VPS
-    curl -fsSL https://setup.domhubs.com.br/hermes | bash
+  Shared DomHubs VPS — one host, many isolated Hermes clients (profiles):
 
-  DomHubs ops (Mac alias):
     ssh domhubs-vps
+    curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --client flavia
 
-  --conductor codex|hermes|skip   Who runs onboarding (default: hermes; use skip for install-only)
-  --no-launch                     Install only; do not start the conductor
+  --client SLUG                   Required. Isolated profile name (a-z0-9-)
+  --conductor codex|hermes|skip   Who runs onboarding (default: hermes)
+  --no-launch                     Install + provision only; do not start conductor
   --base URL                      Asset base for skill files (or HERMES_ONBOARD_BASE)
   --non-interactive               No prompts
   --ask-conductor                 Prompt for conductor even when default is hermes
+  --allow-default                 Allow missing --client (single-tenant / laptop only)
   -h, --help                      Show help
 
 Env:
-  HERMES_ONBOARD_BASE, HERMES_ONBOARD_CONDUCTOR, HERMES_ONBOARD_KICKOFF
-  HERMES_INSTALL_URL, HERMES_ONBOARD_NO_LAUNCH=1
+  HERMES_CLIENT_SLUG, HERMES_ONBOARD_BASE, HERMES_ONBOARD_CONDUCTOR
+  HERMES_ONBOARD_KICKOFF, HERMES_INSTALL_URL, HERMES_ONBOARD_NO_LAUNCH=1
+  HERMES_REQUIRE_CLIENT=0         Same as --allow-default
 EOF
 }
 
 ASK_CONDUCTOR=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --client) CLIENT_SLUG="${2:-}"; shift 2 ;;
     --conductor) CONDUCTOR="${2:-}"; shift 2 ;;
     --no-launch) NO_LAUNCH=1; shift ;;
     --base) DEFAULT_BASE="${2:-}"; shift 2 ;;
     --non-interactive) NONINTERACTIVE=1; shift ;;
     --ask-conductor) ASK_CONDUCTOR=1; shift ;;
+    --allow-default) REQUIRE_CLIENT=0; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown arg: $1" ;;
   esac
 done
 
 [[ "${HERMES_ONBOARD_NO_LAUNCH:-0}" == "1" ]] && NO_LAUNCH=1
+[[ "${HERMES_REQUIRE_CLIENT:-1}" == "0" ]] && REQUIRE_CLIENT=0
 
 # ---------------------------------------------------------------------------
 # Resolve skill source: local checkout vs remote base URL
@@ -123,6 +130,9 @@ copy_tree() {
   if [[ -f "$dest/scripts/apply-core-config.sh" ]]; then
     chmod +x "$dest/scripts/apply-core-config.sh"
   fi
+  if [[ -f "$dest/scripts/provision-client-instance.sh" ]]; then
+    chmod +x "$dest/scripts/provision-client-instance.sh"
+  fi
   if [[ -f "$dest/scripts/start-onboarding.sh" ]]; then
     chmod +x "$dest/scripts/start-onboarding.sh"
   fi
@@ -140,9 +150,11 @@ fetch_skill_to() {
   curl -fsSL "${base}/skill/${SKILL_NAME}/SKILL.md" -o "$dest/SKILL.md"
   curl -fsSL "${base}/skill/${SKILL_NAME}/references/troubleshooting.md" -o "$dest/references/troubleshooting.md"
   curl -fsSL "${base}/skill/${SKILL_NAME}/scripts/apply-core-config.sh" -o "$dest/scripts/apply-core-config.sh"
+  curl -fsSL "${base}/skill/${SKILL_NAME}/scripts/provision-client-instance.sh" -o "$dest/scripts/provision-client-instance.sh" || true
   curl -fsSL "${base}/skill/${SKILL_NAME}/scripts/start-onboarding.sh" -o "$dest/scripts/start-onboarding.sh" || true
   curl -fsSL "${base}/skill/${SKILL_NAME}/scripts/auto_kickoff_cli.py" -o "$dest/scripts/auto_kickoff_cli.py" || true
   chmod +x "$dest/scripts/apply-core-config.sh"
+  [[ -f "$dest/scripts/provision-client-instance.sh" ]] && chmod +x "$dest/scripts/provision-client-instance.sh"
   [[ -f "$dest/scripts/start-onboarding.sh" ]] && chmod +x "$dest/scripts/start-onboarding.sh"
   [[ -f "$dest/scripts/auto_kickoff_cli.py" ]] && chmod +x "$dest/scripts/auto_kickoff_cli.py"
   [[ -s "$dest/SKILL.md" ]] || die "failed to download SKILL.md from $base"
@@ -166,12 +178,17 @@ install_skill() {
   copy_tree "$staging" "$hermes_dest"
   log "Skill installed for Hermes → $hermes_dest"
 
-  # Launcher: auto-starts Phase 1 (agent speaks first via CLI PTY inject)
+  # Launcher + provisioner
   mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/hermes-client-onboarding"
   if [[ -f "$staging/scripts/start-onboarding.sh" ]]; then
     cp -f "$staging/scripts/start-onboarding.sh" "${HOME}/.local/bin/hermes-client-onboarding"
     chmod +x "${HOME}/.local/bin/hermes-client-onboarding"
-    log "Launcher → ~/.local/bin/hermes-client-onboarding (agent fala primeiro)"
+    log "Launcher → ~/.local/bin/hermes-client-onboarding [--client SLUG]"
+  fi
+  if [[ -f "$staging/scripts/provision-client-instance.sh" ]]; then
+    cp -f "$staging/scripts/provision-client-instance.sh" "${HOME}/.local/bin/hermes-client-provision"
+    chmod +x "${HOME}/.local/bin/hermes-client-provision"
+    log "Provisioner → ~/.local/bin/hermes-client-provision --client SLUG"
   fi
   if [[ -f "$staging/scripts/auto_kickoff_cli.py" ]]; then
     cp -f "$staging/scripts/auto_kickoff_cli.py" "${HOME}/.local/share/hermes-client-onboarding/auto_kickoff_cli.py"
@@ -239,15 +256,26 @@ pick_conductor() {
 }
 
 launch_hermes_onboarding() {
+  if [[ -n "$CLIENT_SLUG" ]]; then
+    export HERMES_CLIENT_SLUG="$CLIENT_SLUG"
+    export HERMES_HOME="${HOME}/.hermes/profiles/${CLIENT_SLUG}"
+    if [[ -z "$KICKOFF_MSG" ]]; then
+      KICKOFF_MSG="Inicie onboarding do cliente ${CLIENT_SLUG}. Skill hermes-client-onboarding. Multi-tenant profile ${CLIENT_SLUG} only. Pre-flight e Phase 1."
+    fi
+  elif [[ -z "$KICKOFF_MSG" ]]; then
+    KICKOFF_MSG="Inicie o onboarding agora. Skill hermes-client-onboarding. Pre-flight silencioso e Phase 1 (voce fala primeiro)."
+  fi
   export HERMES_ONBOARD_KICKOFF="$KICKOFF_MSG"
   export HERMES_ONBOARD_SKILL="$SKILL_NAME"
   export HERMES_TUI_QUERY="$KICKOFF_MSG"
   export HERMES_TUI_SKILLS="$SKILL_NAME"
   if [[ -x "${HOME}/.local/bin/hermes-client-onboarding" ]]; then
+    local launch_args=()
+    [[ -n "$CLIENT_SLUG" ]] && launch_args=(--client "$CLIENT_SLUG")
     if [[ -r /dev/tty ]]; then
-      exec "${HOME}/.local/bin/hermes-client-onboarding" </dev/tty >/dev/tty 2>/dev/tty
+      exec "${HOME}/.local/bin/hermes-client-onboarding" "${launch_args[@]}" </dev/tty >/dev/tty 2>/dev/tty
     else
-      exec "${HOME}/.local/bin/hermes-client-onboarding"
+      exec "${HOME}/.local/bin/hermes-client-onboarding" "${launch_args[@]}"
     fi
   fi
   # Fallback: classic CLI + PTY inject script if present
@@ -258,7 +286,7 @@ launch_hermes_onboarding() {
     fi
     exec python3 "$auto_py"
   fi
-  die "launcher missing — re-run install or: hermes chat --cli -s ${SKILL_NAME}"
+  die "launcher missing — re-run install or: hermes --profile ${CLIENT_SLUG:-default} chat --cli -s ${SKILL_NAME}"
 }
 
 launch_conductor() {
@@ -292,22 +320,44 @@ launch_conductor() {
 }
 
 # ---------------------------------------------------------------------------
+provision_client_if_needed() {
+  if [[ -z "$CLIENT_SLUG" ]]; then
+    if [[ "$REQUIRE_CLIENT" == "1" ]]; then
+      die "missing --client SLUG (shared VPS multi-tenant). Example: bash -s -- --client flavia  |  or HERMES_REQUIRE_CLIENT=0 for laptop"
+    fi
+    warn "No --client: using default ~/.hermes (not multi-tenant safe on shared host)"
+    return 0
+  fi
+  # normalize slug early
+  CLIENT_SLUG="$(printf '%s' "$CLIENT_SLUG" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | sed -E 's/-+/-/g; s/^-|-$//g')"
+  export HERMES_CLIENT_SLUG="$CLIENT_SLUG"
+  local prov="${HOME}/.local/bin/hermes-client-provision"
+  [[ -x "$prov" ]] || prov="${HOME}/.hermes/skills/${SKILL_NAME}/scripts/provision-client-instance.sh"
+  [[ -x "$prov" ]] || die "provision script missing after skill install"
+  log "Provisioning isolated instance: ${CLIENT_SLUG}"
+  "$prov" --client "$CLIENT_SLUG" --no-start
+}
+
 main() {
-  log "DomHubs Hermes Client Onboarding"
-  log "Target: this machine (run via SSH on the client VPS)"
+  log "DomHubs Hermes Client Onboarding (shared VPS multi-tenant)"
+  log "Target: this machine (run via SSH on the DomHubs VPS)"
   if [[ "$(uname -s 2>/dev/null || true)" == "Darwin" ]]; then
-    warn "You appear to be on macOS. Production onboarding expects Ubuntu/Debian VPS:"
-    warn "  ssh root@IP_DA_VPS"
-    warn "  curl -fsSL https://setup.domhubs.com.br/hermes | bash"
+    warn "You appear to be on macOS. Production onboarding expects the DomHubs VPS:"
+    warn "  ssh domhubs-vps"
+    warn "  curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --client SLUG"
   fi
   ensure_hermes
   install_skill
+  provision_client_if_needed
 
   if [[ "$NO_LAUNCH" -eq 1 ]]; then
-    log "Done (--no-launch). Re-enter VPS later with: ssh root@IP_DA_VPS  (or ssh domhubs-vps)"
-    log "Start with (agent speaks first):"
-    echo "  hermes-client-onboarding"
-    echo "  # ou: hermes chat --tui -s ${SKILL_NAME} -q \"…\""
+    log "Done (--no-launch). Re-enter: ssh domhubs-vps"
+    if [[ -n "$CLIENT_SLUG" ]]; then
+      echo "  hermes-client-onboarding --client ${CLIENT_SLUG}"
+      echo "  hermes --profile ${CLIENT_SLUG} gateway status"
+    else
+      echo "  hermes-client-onboarding"
+    fi
     exit 0
   fi
 

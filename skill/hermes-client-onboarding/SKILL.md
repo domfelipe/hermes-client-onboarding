@@ -1,13 +1,13 @@
 ---
 name: hermes-client-onboarding
 description: Use when setting up Hermes for a client, install Hermes + Telegram + DeepSeek, run a demo setup, or launch client onboarding. Conducts guided conversational onboarding on a clean Linux VM (deepseek-v4-flash, Telegram gateway, systemd, SOUL.md).
-version: 1.3.0
+version: 1.4.0
 author: DomHubs
 license: MIT
 platforms: [linux, macos]
 metadata:
   hermes:
-    tags: [onboarding, client, telegram, deepseek, gateway, demo, vps]
+    tags: [onboarding, client, telegram, deepseek, gateway, demo, vps, multi-tenant]
     related_skills: []
 ---
 
@@ -15,9 +15,15 @@ metadata:
 
 ## Overview
 
-You are conducting a professional, step-by-step onboarding of Hermes Agent on a clean Ubuntu/Debian **VPS** so a client can start using it immediately (primarily via Telegram). The goal is a working agent in minutes, with **native DeepSeek** (`DEEPSEEK_API_KEY`, provider `deepseek`) and model **`deepseek-v4-flash`** (V4 Flash 0731 family) as the default, Telegram as the primary channel, and the gateway running as a persistent service.
+You are conducting a professional, step-by-step onboarding of Hermes Agent on the **shared DomHubs Ubuntu/Debian VPS** so a client can start using it immediately (primarily via Telegram). DomHubs does **not** give each client a new VM — many clients share one host.
 
-This skill is designed for live demos in front of the client and for commercial handoff. Be clear, structured, and efficient. Always confirm critical values before applying them.
+**Isolation model (required):** one client = one Hermes **profile** (`~/.hermes/profiles/<slug>/`) + its own gateway unit (`hermes-gateway-<slug>.service`) + its own bot token, allowlist, SOUL, and `state.db`. Never put a client bot on the default `~/.hermes` home.
+
+Containers are optional later (OS sandbox for untrusted tools). Profiles already prevent secret/history/gateway conflicts for Telegram bots.
+
+Goal: working agent in minutes, native DeepSeek (`DEEPSEEK_API_KEY`, provider `deepseek`), model **`deepseek-v4-flash`**, Telegram primary, gateway as systemd user service **for that profile only**.
+
+Be clear, structured, and efficient. Always confirm critical values before applying them.
 
 ## When to Use
 
@@ -32,63 +38,73 @@ Don't use for: day-to-day Hermes coding tasks after onboarding is done; multi-te
 
 The onboarding is complete only when all of the following are true:
 
-- Operator can **SSH into the VPS** and re-enter when needed
-- Hermes is installed and `hermes` command works
-- Model is set to `deepseek-v4-flash` with provider `deepseek`
-- `DEEPSEEK_API_KEY` is configured
-- Telegram bot token and at least one allowed user ID are set
-- Gateway is installed as a systemd service and is running
-- A test message sent to the Telegram bot receives a coherent reply
-- `hermes doctor` reports no critical errors
-- SOUL.md has been personalized (or the user explicitly skipped it)
+- Operator can **SSH into the shared DomHubs VPS**
+- Client has a dedicated **profile slug** (not default `~/.hermes`)
+- Hermes is installed; `hermes --profile <slug> …` works
+- Model is set to `deepseek-v4-flash` with provider `deepseek` **inside that profile**
+- `DEEPSEEK_API_KEY` is configured **in the profile `.env`**
+- Telegram bot token (unique to this client) and allowlist are set **in the profile**
+- Gateway unit `hermes-gateway-<slug>` is installed and running
+- No other profile uses the same Telegram bot token
+- A test message to the bot receives a coherent reply
+- `hermes --profile <slug> doctor` has no critical errors
+- SOUL.md personalized under the profile home (or user skipped)
 
-## Phase 0 — Entrar na VPS (antes de tudo)
+## Phase 0 — Entrar na VPS + escolher instância (antes de tudo)
 
-Onboarding runs **inside** the Linux VPS, not on the operator’s laptop. First step is always SSH.
+Onboarding runs **inside** the shared DomHubs VPS. First step is always SSH; second is a **client slug**.
 
-**Generic (any client VM):**
-
-```bash
-ssh root@IP_DA_VPS
-# or: ssh USER@IP_DA_VPS
-```
-
-**DomHubs ops alias (operator Mac, after key is set):**
+**DomHubs ops (operator Mac):**
 
 ```bash
 ssh domhubs-vps
 # Host: 169.58.116.28  User: root  Key: ~/.ssh/domhubs_vps
 ```
 
-**Then, already on the VPS, bootstrap + this skill (one-liner):**
+**On the VPS — provision + onboarding for ONE client (required):**
 
 ```bash
-curl -fsSL https://setup.domhubs.com.br/hermes | bash
+# slug = stable id (flavia, acme, joao-silva). Never reuse across clients.
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --client SLUG
 ```
 
-Variants on the VPS:
+Examples:
 
 ```bash
-# install only (no auto-launch)
-curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --no-launch
-
-# re-open onboarding later
-hermes-client-onboarding
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --client flavia
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --client acme --no-launch
 ```
 
-If the session drops mid-onboarding, reconnect with the same `ssh` and reattach tmux if used:
+This creates/reuses:
+
+| Piece | Path / unit |
+|-------|-------------|
+| Home | `~/.hermes/profiles/<slug>/` |
+| Secrets | `…/profiles/<slug>/.env` |
+| Soul | `…/profiles/<slug>/SOUL.md` |
+| History | `…/profiles/<slug>/state.db` |
+| Gateway | `hermes-gateway-<slug>.service` |
+
+**Re-enter later:**
 
 ```bash
-ssh root@IP_DA_VPS   # or: ssh domhubs-vps
-tmux ls
-tmux attach -t hermes-onboard-<pid>   # if the launcher created one
-# or restart onboarding:
-hermes-client-onboarding
+ssh domhubs-vps
+hermes --profile SLUG gateway status
+hermes-client-onboarding --client SLUG
+# tmux: tmux ls && tmux attach -t hermes-onboard-SLUG-…
 ```
 
-In Phase 6 handover, **always** leave the client/operator with the exact SSH command for *their* IP (do not invent IPs).
+**Hard isolation rules (never break these):**
 
-**Done when:** shell is on the target Linux VPS (hostname/IP known) and you can run commands as the deploy user (usually `root`).
+1. One Telegram bot token → exactly one profile/gateway.
+2. All `hermes config set` / doctor / gateway for a client use `--profile SLUG` (or `HERMES_HOME=~/.hermes/profiles/SLUG`).
+3. Do not start client bots on the default `hermes-gateway.service` (host default is for tooling/setup only).
+4. Do not enable heavy shared MCP servers on client profiles (leaks tokens + RAM).
+5. `kanban.dispatch_in_gateway: false` on client profiles (shared host).
+
+If the kickoff mentions a profile slug, **stay inside that profile for the entire onboarding**.
+
+**Done when:** shell is on DomHubs VPS, client slug known, profile home exists (or will be created immediately).
 
 ## Pre-flight Checks (do these first)
 
@@ -227,67 +243,74 @@ Write the final content to `~/.hermes/SOUL.md`. Confirm before overwriting if th
 
 **Done when:** SOUL.md written or user explicitly skipped personalization.
 
-### Phase 5 — Gateway & Persistence
+### Phase 5 — Gateway & Persistence (per profile)
 
-1. Install the gateway as a system service:
+Assume client slug is `$SLUG` (from Phase 0 / kickoff).
+
+1. Prefer the provisioner if the unit is missing:
 
 ```bash
-hermes gateway install
+hermes-client-provision --client "$SLUG"
+# or: hermes --profile "$SLUG" gateway install
 ```
 
-2. Start / restart it:
+2. Start / restart **only this profile’s** gateway:
 
 ```bash
-hermes gateway start
+hermes --profile "$SLUG" gateway start
 # or
-hermes gateway restart
+hermes --profile "$SLUG" gateway restart
 ```
 
 3. Check status:
 
 ```bash
-hermes gateway status
+hermes --profile "$SLUG" gateway status
+systemctl --user is-active "hermes-gateway-${SLUG}.service"
 ```
 
-4. If the service fails, inspect logs (`hermes gateway logs` or `journalctl -u hermes* -n 50` / `launchctl` on macOS) and fix common issues (PATH, missing env, permissions). See `references/troubleshooting.md`.
+4. If the service fails, inspect logs:
 
-**Done when:** gateway status shows running and service is installed for reboot persistence.
+```bash
+journalctl --user -u "hermes-gateway-${SLUG}" -n 50 --no-pager
+```
+
+Never restart the default `hermes-gateway.service` for a client bot unless you intentionally want the default home (you should not).
+
+**Done when:** `hermes-gateway-<slug>` is active and Telegram connected for that profile only.
 
 ### Phase 6 — Validation & Handover
 
-Run the full validation sequence:
+Run the full validation sequence (replace `$SLUG`):
 
 ```bash
-hermes doctor
-hermes gateway status
+hermes --profile "$SLUG" doctor
+hermes --profile "$SLUG" gateway status
 ```
 
 Then instruct the user to send a test message to the Telegram bot (“oi” ou “teste”). Confirm that a coherent reply arrives.
 
-Final checklist to present to the user:
+Final checklist:
 
-- [ ] Hermes installed and in PATH
-- [ ] Model = deepseek-v4-flash via provider deepseek (native API)
-- [ ] Telegram bot responding
-- [ ] Gateway running as service (survives reboot)
-- [ ] SOUL.md personalized
-- [ ] `hermes doctor` clean
+- [ ] Profile `~/.hermes/profiles/<slug>/` isolated
+- [ ] Model = deepseek-v4-flash via provider deepseek (in profile)
+- [ ] Unique Telegram bot responding
+- [ ] Unit `hermes-gateway-<slug>` running (survives reboot + linger)
+- [ ] SOUL.md personalized under profile
+- [ ] `hermes --profile <slug> doctor` clean
+- [ ] No token collision with other profiles
 
-Give the user the useful commands for later:
+Ops commands for later:
 
 ```bash
-# Re-enter the VPS (fill real IP / use DomHubs alias)
-ssh root@IP_DA_VPS
-# ssh domhubs-vps
-
-hermes gateway status
-hermes gateway logs
-hermes doctor
-hermes config get model.default
-hermes update
+ssh domhubs-vps
+hermes --profile SLUG gateway status
+journalctl --user -u hermes-gateway-SLUG -n 50 --no-pager
+hermes --profile SLUG doctor
+hermes profile list
 ```
 
-**Done when:** checklist walked, test Telegram reply confirmed, SSH re-entry command + useful commands delivered.
+**Done when:** checklist walked, test Telegram reply confirmed, slug + SSH re-entry delivered.
 
 ## Error Handling Guidelines
 
@@ -321,35 +344,34 @@ hermes update
 ## Reference Commands (quick lookup)
 
 ```bash
-# Enter VPS first
-ssh root@IP_DA_VPS
-# DomHubs ops: ssh domhubs-vps
+# Enter shared VPS
+ssh domhubs-vps
 
-# DomHubs one-liner (on the VPS)
-curl -fsSL https://setup.domhubs.com.br/hermes | bash
+# New / resume client instance (on VPS)
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --client SLUG
+hermes-client-provision --client SLUG
+hermes-client-onboarding --client SLUG
 
-# Install Hermes only
-curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-browser
+# Config inside profile (HERMES_HOME or --profile)
+export HERMES_HOME=~/.hermes/profiles/SLUG
+# or: hermes --profile SLUG config set …
+hermes --profile SLUG config set DEEPSEEK_API_KEY "sk-..."
+hermes --profile SLUG config set model.provider deepseek
+hermes --profile SLUG config set model.default deepseek-v4-flash
+hermes --profile SLUG config set model.base_url "https://api.deepseek.com/v1"
+hermes --profile SLUG config set TELEGRAM_BOT_TOKEN "..."
+hermes --profile SLUG config set TELEGRAM_ALLOWED_USERS "123456789"
+grep -E '^TELEGRAM_ALLOWED_USERS=' ~/.hermes/profiles/SLUG/.env
 
-# Core config (or use the helper script)
-hermes config set DEEPSEEK_API_KEY "sk-..."
-hermes config set model.provider deepseek
-hermes config set model.default deepseek-v4-flash
-hermes config set model.base_url "https://api.deepseek.com/v1"
-hermes config set TELEGRAM_BOT_TOKEN "..."
-hermes config set TELEGRAM_ALLOWED_USERS "123456789"
-grep -E '^TELEGRAM_ALLOWED_USERS=' ~/.hermes/.env   # must match IDs above
+# Gateway for this client only
+hermes --profile SLUG gateway install
+hermes --profile SLUG gateway restart
+hermes --profile SLUG gateway status
+journalctl --user -u hermes-gateway-SLUG -n 50 --no-pager
 
-# Gateway
-hermes gateway install
-hermes gateway restart
-hermes gateway status
-# Linux: journalctl --user -u hermes-gateway -n 50
-# macOS: tail -f ~/.hermes/logs/gateway.log
-
-# Validation
-hermes doctor
-hermes --version
+# Fleet
+hermes profile list
+systemctl --user list-units 'hermes-gateway*' --all
 ```
 
 When the user says the onboarding is finished or the bot is responding correctly, summarize what was configured and congratulate them. Offer to make any final adjustments.

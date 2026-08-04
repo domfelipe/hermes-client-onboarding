@@ -7,48 +7,57 @@ One-liner + skill conversacional para deixar o **Hermes Agent** pronto no client
 - Personalidade em `SOUL.md`
 - Setup guiado por LLM (Codex ou Hermes)
 
-## One-liner (produção) — entrar na VPS + instalar
+## One-liner (produção) — VPS compartilhada multi-tenant
 
-O bootstrap roda **dentro da VPS Linux**, não no Mac do operador.
+**Uma VPS DomHubs, vários clientes.** Isolamento = **Hermes profile** por cliente (não VM nova, não Docker por padrão).
+
+| Cliente | Home | Gateway unit |
+|---------|------|----------------|
+| `flavia` | `~/.hermes/profiles/flavia/` | `hermes-gateway-flavia` |
+| `acme` | `~/.hermes/profiles/acme/` | `hermes-gateway-acme` |
+
+Cada um: bot token, allowlist, SOUL, `state.db` próprios. **Nunca** reutilizar token entre profiles.
 
 ### 1) Entrar na VPS
-
-```bash
-ssh root@IP_DA_VPS
-```
-
-DomHubs ops (alias no Mac, após chave `~/.ssh/domhubs_vps`):
 
 ```bash
 ssh domhubs-vps
 # → root@169.58.116.28
 ```
 
-### 2) One-liner (já dentro da VPS)
+### 2) One-liner **com slug do cliente** (obrigatório)
 
 ```bash
-curl -fsSL https://setup.domhubs.com.br/hermes | bash
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --client flavia
 ```
 
-Instala/atualiza Hermes + skill + launcher e **abre o onboarding** (condutor Hermes por padrão).
+Isso: instala/atualiza Hermes + skill → provisiona profile isolado → abre onboarding **só nesse profile**.
 
-Variantes (ainda na VPS):
+Variantes:
 
 ```bash
-# só instalar, sem abrir agente
-curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --no-launch
+# provisionar sem abrir o agente
+curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --client acme --no-launch
 
-# perguntar Codex vs Hermes
-curl -fsSL https://setup.domhubs.com.br/hermes | bash -s -- --ask-conductor
+# reabrir onboarding de um cliente
+hermes-client-onboarding --client flavia
+
+# só criar/atualizar a instância
+hermes-client-provision --client acme
 ```
 
-### 3) Voltar depois
+### 3) Ops diário
 
 ```bash
-ssh root@IP_DA_VPS   # ou: ssh domhubs-vps
-hermes gateway status
-hermes-client-onboarding   # se precisar retomar o onboarding
+ssh domhubs-vps
+hermes profile list
+hermes --profile flavia gateway status
+journalctl --user -u hermes-gateway-flavia -n 50 --no-pager
 ```
+
+### Por que não container (ainda)
+
+Profiles + `HERMES_HOME` + multi-gateway já isolam secrets/histórico/polling do Telegram com ~150 MB RAM/cliente. Docker entra depois se precisar sandbox de shell/tools por cliente.
 
 Espelho GitHub (fallback):
 
